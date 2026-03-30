@@ -1,0 +1,19 @@
+[
+  {
+    "id": "8ce5d225",
+    "source": "unknown",
+    "book": "D",
+    "sport": null,
+    "league": null,
+    "market": "Points",
+    "participant": "A",
+    "side": "over",
+    "line": null,
+    "odds_american": -110,
+    "ev_pct": null,
+    "hit_prob_pct": 50.0,
+    "fair_odds_american": null,
+    "url": null,
+    "captured_at": "2026-02-26T06:02:56.465358Z"
+  }
+]

@@ -1,0 +1,202 @@
+[
+  {
+    "id": "1",
+    "participant": "LeBron James - Lakers",
+    "market": "Points",
+    "side": "Over",
+    "line": 25.5,
+    "odds_american": -110,
+    "hit_prob_pct": 52.0,
+    "ev_pct": 2.5
+  },
+  {
+    "id": "2",
+    "participant": "Giannis Antetokounmpo - Bucks",
+    "market": "Points",
+    "side": "Over",
+    "line": 27.5,
+    "odds_american": -110,
+    "hit_prob_pct": 48.0,
+    "ev_pct": 0.0
+  },
+  {
+    "id": "3",
+    "participant": "Luka Doncic - Mavericks",
+    "market": "Points",
+    "side": "Over",
+    "line": 28.5,
+    "odds_american": -110,
+    "hit_prob_pct": 55.0,
+    "ev_pct": 4.0
+  },
+  {
+    "id": "4",
+    "participant": "Kevin Durant - Suns",
+    "market": "Points",
+    "side": "Over",
+    "line": 26.5,
+    "odds_american": -110,
+    "hit_prob_pct": 50.0,
+    "ev_pct": 1.0
+  },
+  {
+    "id": "5",
+    "participant": "Jayson Tatum - Celtics",
+    "market": "Points",
+    "side": "Over",
+    "line": 27.0,
+    "odds_american": -120,
+    "hit_prob_pct": 51.0,
+    "ev_pct": 1.5
+  },
+  {
+    "id": "6",
+    "participant": "Stephen Curry - Warriors",
+    "market": "Points",
+    "side": "Over",
+    "line": 26.0,
+    "odds_american": -110,
+    "hit_prob_pct": 53.0,
+    "ev_pct": 3.0
+  },
+  {
+    "id": "7",
+    "participant": "Joel Embiid - 76ers",
+    "market": "Points",
+    "side": "Over",
+    "line": 29.0,
+    "odds_american": -120,
+    "hit_prob_pct": 49.0,
+    "ev_pct": 1.8
+  },
+  {
+    "id": "8",
+    "participant": "Damian Lillard - Bucks",
+    "market": "Points",
+    "side": "Over",
+    "line": 25.0,
+    "odds_american": -110,
+    "hit_prob_pct": 54.0,
+    "ev_pct": 2.8
+  },
+  {
+    "id": "9",
+    "participant": "Kawhi Leonard - Clippers",
+    "market": "Points",
+    "side": "Over",
+    "line": 24.5,
+    "odds_american": -110,
+    "hit_prob_pct": 51.0,
+    "ev_pct": 2.0
+  },
+  {
+    "id": "10",
+    "participant": "Shai Gilgeous-Alexander - Thunder",
+    "market": "Points",
+    "side": "Over",
+    "line": 28.0,
+    "odds_american": -110,
+    "hit_prob_pct": 52.0,
+    "ev_pct": 2.2
+  },
+  {
+    "id": "11",
+    "participant": "Nikola Jokic - Nuggets",
+    "market": "Points",
+    "side": "Over",
+    "line": 29.5,
+    "odds_american": -110,
+    "hit_prob_pct": 56.0,
+    "ev_pct": 4.5
+  },
+  {
+    "id": "12",
+    "participant": "Chris Paul - Wizards",
+    "market": "Assists",
+    "side": "Over",
+    "line": 7.5,
+    "odds_american": -110,
+    "hit_prob_pct": 50.0,
+    "ev_pct": 0.5
+  },
+  {
+    "id": "13",
+    "participant": "Darius Garland - Cavaliers",
+    "market": "Assists",
+    "side": "Over",
+    "line": 6.5,
+    "odds_american": -120,
+    "hit_prob_pct": 48.0,
+    "ev_pct": -0.5
+  },
+  {
+    "id": "14",
+    "participant": "De'Aaron Fox - Kings",
+    "market": "Points",
+    "side": "Over",
+    "line": 25.0,
+    "odds_american": -110,
+    "hit_prob_pct": 51.0,
+    "ev_pct": 2.0
+  },
+  {
+    "id": "15",
+    "participant": "Trae Young - Hawks",
+    "market": "Points",
+    "side": "Over",
+    "line": 26.5,
+    "odds_american": -110,
+    "hit_prob_pct": 50.0,
+    "ev_pct": 1.0
+  },
+  {
+    "id": "16",
+    "participant": "Donovan Mitchell - Cavaliers",
+    "market": "Points",
+    "side": "Over",
+    "line": 24.0,
+    "odds_american": -110,
+    "hit_prob_pct": 52.0,
+    "ev_pct": 2.3
+  },
+  {
+    "id": "17",
+    "participant": "Andrew Wiggins - Warriors",
+    "market": "Points",
+    "side": "Over",
+    "line": 18.5,
+    "odds_american": -110,
+    "hit_prob_pct": 54.0,
+    "ev_pct": 3.5
+  },
+  {
+    "id": "18",
+    "participant": "Brandon Ingram - Pelicans",
+    "market": "Points",
+    "side": "Over",
+    "line": 23.0,
+    "odds_american": -110,
+    "hit_prob_pct": 49.0,
+    "ev_pct": 0.8
+  },
+  {
+    "id": "19",
+    "participant": "LaMelo Ball - Hornets",
+    "market": "Points",
+    "side": "Over",
+    "line": 20.5,
+    "odds_american": -110,
+    "hit_prob_pct": 51.0,
+    "ev_pct": 1.5
+  },
+  {
+    "id": "20",
+    "participant": "Franz Wagner - Magic",
+    "market": "Points",
+    "side": "Over",
+    "line": 19.0,
+    "odds_american": -110,
+    "hit_prob_pct": 53.0,
+    "ev_pct": 3.0
+  }
+]

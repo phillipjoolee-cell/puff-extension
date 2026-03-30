@@ -1,0 +1,5 @@
+dataset_name,num_slips,num_legs_total,avg_slip_ev,median_slip_ev,min_slip_ev,max_slip_ev,avg_slip_hit_prob,median_slip_hit_prob,min_slip_hit_prob,max_slip_hit_prob,avg_pairwise_overlap,max_player_exposure_ratio,top_5_players,has_duplicate_slips,has_exposure_violations,portfolio_score
+large_dataset (A: no diversification),1,3,4.0000,4.0000,4.0000,4.0000,55.00,55.00,55.00,55.00,0.0000,1.0000,Nikola Jokic - Nuggets(1); Luka Doncic - Mavericks(1); Andrew Wiggins - Warriors(1),False,False,-2.1520
+large_dataset (B: with diversification),1,3,4.0000,4.0000,4.0000,4.0000,55.00,55.00,55.00,55.00,0.0000,1.0000,Nikola Jokic - Nuggets(1); Luka Doncic - Mavericks(1); Andrew Wiggins - Warriors(1),False,False,-2.1520
+sample_dataset (A: no diversification),1,3,3.2667,3.2667,3.2667,3.2667,54.00,54.00,54.00,54.00,0.0000,1.0000,Luka Doncic - Mavericks(1); Damian Lillard - Bucks(1); Stephen Curry - Warriors(1),False,False,-2.2566
+sample_dataset (B: with diversification),1,3,3.2667,3.2667,3.2667,3.2667,54.00,54.00,54.00,54.00,0.0000,1.0000,Luka Doncic - Mavericks(1); Damian Lillard - Bucks(1); Stephen Curry - Warriors(1),False,False,-2.2566

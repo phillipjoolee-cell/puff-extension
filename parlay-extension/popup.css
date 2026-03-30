@@ -1,0 +1,2679 @@
+:root {
+  --bg0: #070a12;
+  --bg1: #0b0f1a;
+  --bg2: #111827;
+  --card: #141b28;
+  --cardHover: #1a202f;
+  --stroke: rgba(185, 190, 255, 0.1);
+  --textPrimary: rgba(255, 255, 255, 0.95);
+  --textSecondary: rgba(255, 255, 255, 0.6);
+  --textMuted: rgba(255, 255, 255, 0.35);
+  --accentA: #7c63ff;
+  --accentB: #78a0ff;
+  --glow1: rgba(123, 99, 255, 0.6);
+  --glow2: rgba(120, 160, 255, 0.4);
+  --warning: rgba(255, 159, 64, 0.8);
+  /* Section 3: muted color coding */
+  --metricGood: rgba(120, 180, 120, 0.9);
+  --metricModerate: rgba(200, 150, 80, 0.9);
+  --metricBad: rgba(200, 100, 100, 0.9);
+  /* Inputs (bankroll rows, etc.) */
+  --input: rgba(11, 15, 26, 0.8);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  color: var(--textPrimary);
+  background: var(--bg0);
+}
+
+body {
+  width: 520px;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: var(--bg0);
+}
+
+/* Topbar */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: linear-gradient(180deg, rgba(11, 15, 26, 0.95) 0%, rgba(7, 10, 18, 0.8) 100%);
+  border-bottom: 1px solid var(--stroke);
+  gap: 12px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.logo {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.brandText {
+  flex: 1;
+  min-width: 0;
+}
+
+.titleRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--textPrimary);
+}
+
+.subtitle {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--textMuted);
+  text-transform: uppercase;
+}
+
+.iconBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  background: rgba(11, 15, 26, 0.6);
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.iconBtn:hover {
+  background: var(--cardHover);
+  border-color: rgba(185, 190, 255, 0.2);
+}
+
+/* Card base */
+.card,
+.section {
+  margin: 0 12px;
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+}
+
+.card {
+  margin-top: 12px;
+  margin-bottom: 0;
+}
+
+section.card,
+section.card + section,
+.controls,
+.cta,
+.stats,
+.slips {
+  margin-bottom: 12px;
+}
+
+.section {
+  margin-bottom: 12px;
+}
+
+/* Capture row */
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.captureRow {
+  align-items: flex-start;
+}
+
+.captureRow .btnSecondary {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.btnSecondary {
+  flex: 0 0 auto;
+  min-width: 134px;
+  width: 134px;
+  height: 38px;
+  min-height: 38px;
+  padding: 10px 12px;
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  background: rgba(11, 15, 26, 0.6);
+  color: var(--textPrimary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--textMuted);
+}
+
+.btnSecondary:hover {
+  background: var(--cardHover);
+  border-color: rgba(185, 190, 255, 0.2);
+}
+
+.btnSecondary:active {
+  transform: scale(0.98);
+}
+
+.status {
+  font-size: 11px;
+  color: var(--textMuted);
+}
+
+/* Controls */
+.controls {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* In-popup Sportsbook Bankrolls */
+.settingsSection {
+  margin: 0 12px 12px;
+  padding: 12px 14px;
+  background: rgba(20, 27, 40, 0.65);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+}
+.settingsSectionTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--textPrimary);
+  margin: 0 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.settingsSection .settingsHint {
+  font-size: 11px;
+  color: var(--textSecondary);
+  margin: 0 0 10px;
+  line-height: 1.45;
+}
+
+.settingsSection .bankrollBookList .settingsHint {
+  margin: 0;
+  color: var(--textMuted);
+}
+
+.controlCard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--textMuted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Segmented control (pill buttons) */
+.segmented {
+  display: flex;
+  gap: 4px;
+  padding: 2px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+}
+
+.segBtn {
+  flex: 1;
+  padding: 8px 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--textSecondary);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.segBtn:hover {
+  background: rgba(185, 190, 255, 0.05);
+}
+
+.segBtn.isActive {
+  background: linear-gradient(135deg, var(--accentA), var(--accentB));
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 0 12px var(--glow1);
+}
+
+/* Select dropdown */
+.select {
+  padding: 8px 10px;
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  background: rgba(11, 15, 26, 0.6);
+  color: var(--textPrimary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='rgba(120,160,255,0.6)' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 28px;
+}
+
+.select:hover {
+  border-color: var(--accentB);
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--accentB);
+  box-shadow: 0 0 12px rgba(120, 160, 255, 0.2);
+}
+
+/* CTA section */
+.cta {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.btnPrimary {
+  padding: 14px 16px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--accentA), var(--accentB));
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 8px 24px rgba(123, 99, 255, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btnPrimary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(123, 99, 255, 0.4);
+}
+
+.btnPrimary:active {
+  transform: translateY(0);
+}
+
+.plus {
+  font-size: 16px;
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--textMuted);
+  text-align: center;
+}
+
+.hint.hint--warn {
+  color: var(--warning);
+  font-weight: 500;
+}
+
+/* Section 3: Loading overlay */
+.cta {
+  position: relative;
+}
+.loadingOverlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(7, 10, 18, 0.92);
+  color: var(--textSecondary);
+}
+.loadingOverlay.hidden { display: none; }
+.loadingSpinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--stroke);
+  border-top-color: var(--accentB);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loadingText { font-size: 12px; font-weight: 600; }
+
+/* Section 3: Metrics (exactly 5) — layout overridden at file end (.metricsGrid) */
+.metrics {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.metricCard {
+  padding: 12px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+  text-align: center;
+}
+.metricValue {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accentB);
+  margin-bottom: 4px;
+}
+.metricValue.metricGood { color: var(--metricGood); }
+.metricValue.metricModerate { color: var(--metricModerate); }
+.metricValue.metricBad { color: var(--metricBad); }
+.metricLabel {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--textMuted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Section 3: Correlation warnings */
+.warningsSection {
+  padding: 12px;
+  margin: 0 12px 12px;
+  background: rgba(50, 35, 20, 0.4);
+  border: 1px solid rgba(255, 159, 64, 0.3);
+  border-radius: 8px;
+}
+.warningsSection.hidden { display: none; }
+.warningsTitle { font-size: 11px; font-weight: 600; color: var(--warning); margin-bottom: 8px; }
+.warningsList { display: flex; flex-direction: column; gap: 6px; }
+.warningItem { font-size: 11px; color: var(--textSecondary); }
+
+/* Section 3: Recommended label */
+.slipRecommended {
+  font-size: 10px;
+  color: var(--textMuted);
+  font-style: italic;
+  margin-top: 2px;
+}
+
+.hidden { display: none !important; }
+
+/* Stats (legacy, kept for ref) */
+.stats {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.statCard {
+  padding: 12px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.statValue {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accentB);
+  margin-bottom: 4px;
+}
+
+.statLabel {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--textMuted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Section 3: Metrics (5 cards) */
+.metrics {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.metricCard {
+  padding: 10px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.metricValue {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accentB);
+  margin-bottom: 4px;
+}
+
+.metricValue.metricGood { color: var(--metricGood); }
+.metricValue.metricModerate { color: var(--metricModerate); }
+.metricValue.metricBad { color: var(--metricBad); }
+
+.metricLabel {
+  font-size: 8px;
+  font-weight: 600;
+  color: var(--textMuted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Section 3: Loading overlay */
+.cta { position: relative; }
+
+.loadingOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(7, 10, 18, 0.9);
+  backdrop-filter: blur(4px);
+}
+
+.loadingOverlay.hidden { display: none; }
+
+.loadingSpinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--stroke);
+  border-top-color: var(--accentB);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loadingText {
+  font-size: 12px;
+  color: var(--textSecondary);
+}
+
+.hidden { display: none !important; }
+
+/* Section 3: Correlation Warnings */
+.warningsSection {
+  padding: 12px;
+  margin: 0 12px 12px;
+  background: rgba(200, 150, 80, 0.08);
+  border: 1px solid rgba(200, 150, 80, 0.3);
+  border-radius: 8px;
+}
+
+.warningsTitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--metricModerate);
+  margin-bottom: 8px;
+}
+
+.warningsList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.warningItem {
+  font-size: 11px;
+  color: var(--textSecondary);
+  line-height: 1.4;
+}
+
+/* Section 3: Recommended label */
+.slipRecommended {
+  font-size: 9px;
+  color: var(--textMuted);
+  font-style: italic;
+  margin-top: 2px;
+}
+
+/* Slips */
+.slips {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.slipsHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* Sportsbook bankrolls (popup) */
+.bankrollBookList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.bankrollBookRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bankrollBookLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  flex: 1;
+}
+
+.bankrollBookName {
+  font-size: 13px;
+  color: var(--textPrimary);
+}
+
+.bankrollInputWrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bankrollInputWrapper.hidden {
+  display: none;
+}
+
+.bankrollDollar {
+  color: var(--textMuted);
+  font-size: 13px;
+}
+
+.bankrollInput {
+  width: 80px;
+  background: var(--input);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  padding: 4px 8px;
+  color: var(--textPrimary);
+  font-size: 13px;
+}
+
+.bankrollTotal {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--textMuted);
+  text-align: right;
+  border-top: 1px solid var(--stroke);
+  padding-top: 8px;
+}
+
+.slipsFilterRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0 10px;
+}
+
+.toggleLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--textSecondary);
+  user-select: none;
+}
+
+.toggleLabel input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  clip: rect(0 0 0 0);
+}
+
+/* Visible checkbox + label (Generated Slips filter) */
+.slips .slipsFilterRow .toggleLabel input[type="checkbox"] {
+  position: static;
+  opacity: 1;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  clip: auto;
+  flex-shrink: 0;
+  accent-color: var(--accentB);
+  cursor: pointer;
+}
+
+.toggleText {
+  font-size: 12px;
+  color: var(--textSecondary);
+  line-height: 1.3;
+}
+
+.toggleSlider {
+  position: relative;
+  flex-shrink: 0;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--stroke);
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.toggleSlider::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  transition: transform 0.2s;
+}
+
+.toggleLabel input:focus-visible + .toggleSlider {
+  box-shadow: 0 0 0 2px rgba(120, 160, 255, 0.35);
+}
+
+.toggleLabel input:checked + .toggleSlider {
+  background: rgba(120, 160, 255, 0.35);
+  border-color: rgba(120, 160, 255, 0.5);
+}
+
+.toggleLabel input:checked + .toggleSlider::after {
+  transform: translateX(16px);
+}
+
+.slipsFilterHint {
+  font-size: 11px;
+  color: var(--textMuted);
+}
+
+.meta {
+  font-size: 11px;
+  color: var(--textMuted);
+}
+
+.slipsList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.slipCard {
+  padding: 10px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-left: 4px solid var(--accentB);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.slipCard:hover {
+  background: rgba(11, 15, 26, 0.85);
+}
+
+.slipCard.isSelected {
+  border-color: var(--accentA);
+  border-left-width: 4px;
+  background: rgba(124, 99, 255, 0.08);
+  box-shadow: 0 0 0 1px rgba(124, 99, 255, 0.2);
+}
+
+.slipCard--notBettable {
+  opacity: 0.72;
+  filter: grayscale(0.25);
+}
+
+.slipCardWarn {
+  font-size: 11px;
+  vertical-align: middle;
+}
+
+.metricCapital--perBook {
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.slipCardQuality {
+  flex-shrink: 0;
+  font-size: 10px;
+  line-height: 1;
+}
+.slipCard.slipQuality-good { border-left-color: rgba(120, 180, 120, 0.9); }
+.slipCard.slipQuality-ok { border-left-color: rgba(200, 150, 80, 0.9); }
+.slipCard.slipQuality-bad { border-left-color: rgba(200, 100, 100, 0.9); }
+
+.metricsViewAllHint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--textSecondary);
+}
+
+.metricsViewAllHint.hidden {
+  display: none;
+}
+
+.slipCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.slipCardTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--textPrimary);
+  flex: 1;
+}
+
+.slipCardOdds {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accentB);
+}
+
+.slipCardCopyBtn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--stroke);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--textMuted);
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.slipCardCopyBtn:hover {
+  background: rgba(185, 190, 255, 0.05);
+  color: var(--textPrimary);
+}
+
+.slipCardCopyBtn.copied {
+  color: rgba(120, 160, 255, 0.8);
+}
+
+.slipCardLegs {
+  font-size: 11px;
+  color: var(--textSecondary);
+  line-height: 1.4;
+}
+
+.slipCardCapital {
+  font-size: 10px;
+  color: var(--textMuted);
+  line-height: 1.35;
+}
+
+.linkBtn {
+  align-self: center;
+  background: none;
+  border: none;
+  color: var(--accentB);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  transition: color 0.2s;
+}
+
+.linkBtn:hover {
+  color: var(--accentA);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.input {
+  padding: 10px 12px;
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  background: rgba(11, 15, 26, 0.8);
+  color: var(--textPrimary);
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.input:hover {
+  border-color: rgba(185, 190, 255, 0.2);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accentB);
+  box-shadow: 0 0 12px rgba(120, 160, 255, 0.2);
+}
+
+.micro {
+  font-size: 10px;
+  color: var(--textMuted);
+}
+
+/* Section 3: Metrics (5 metrics) */
+.metrics {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.metricCard {
+  padding: 10px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+  text-align: center;
+}
+.metricValue {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accentB);
+  margin-bottom: 2px;
+}
+.metricValue.metricGood { color: var(--metricGood); }
+.metricValue.metricModerate { color: var(--metricModerate); }
+.metricValue.metricBad { color: var(--metricBad); }
+.metricLabel {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--textMuted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Section 3: Loading overlay */
+.cta { position: relative; }
+.loadingOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(7, 10, 18, 0.9);
+  backdrop-filter: blur(4px);
+}
+.loadingOverlay.hidden { display: none; }
+.loadingSpinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--stroke);
+  border-top-color: var(--accentB);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loadingText {
+  font-size: 12px;
+  color: var(--textSecondary);
+}
+.hidden { display: none !important; }
+
+/* Section 3: Correlation Warnings */
+.warningsSection {
+  padding: 12px;
+  margin: 0 12px 12px;
+  background: rgba(200, 150, 80, 0.08);
+  border: 1px solid rgba(200, 150, 80, 0.3);
+  border-radius: 8px;
+}
+.warningsTitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--metricModerate);
+  margin-bottom: 8px;
+}
+.warningsList { display: flex; flex-direction: column; gap: 4px; }
+.warningItem {
+  font-size: 11px;
+  color: var(--textSecondary);
+  line-height: 1.4;
+}
+
+/* Section 3: Recommended label */
+.slipRecommended {
+  font-size: 9px;
+  color: var(--textMuted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+}
+
+/* Section 3: Metrics (exactly 5), loading, warnings, recommended */
+.hidden { display: none !important; }
+
+.cta { position: relative; }
+
+.loadingOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(7, 10, 18, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.loadingSpinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--stroke);
+  border-top-color: var(--accentB);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loadingText {
+  font-size: 12px;
+  color: var(--textSecondary);
+}
+
+.metrics {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+section.metrics { margin-bottom: 12px; }
+
+.metricCard {
+  padding: 10px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.metricValue {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accentB);
+  margin-bottom: 4px;
+}
+
+.metricValue.metricGood { color: var(--metricGood); }
+.metricValue.metricModerate { color: var(--metricModerate); }
+.metricValue.metricBad { color: var(--metricBad); }
+
+.metricLabel {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--textMuted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.warningsSection {
+  padding: 12px;
+  margin: 0 12px 12px;
+  background: rgba(255, 159, 64, 0.08);
+  border: 1px solid rgba(255, 159, 64, 0.2);
+  border-radius: 8px;
+}
+
+.warningsTitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--warning);
+  margin-bottom: 8px;
+}
+
+.warningsList { display: flex; flex-direction: column; gap: 6px; }
+
+.warningItem {
+  font-size: 11px;
+  color: var(--textSecondary);
+  line-height: 1.4;
+}
+
+.slipRecommended {
+  font-size: 9px;
+  color: var(--textMuted);
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+}
+
+/* Section 3: Portfolio metrics layout — see “Portfolio metrics (final)” at end of file */
+
+/* Section 3: Loading overlay */
+.cta { position: relative; }
+.loadingOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(7, 10, 18, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.loadingOverlay.hidden { display: none; }
+.loadingSpinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--stroke);
+  border-top-color: var(--accentB);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.loadingText {
+  font-size: 12px;
+  color: var(--textSecondary);
+}
+
+/* Section 3: Warnings */
+.hidden { display: none !important; }
+.warningsSection {
+  padding: 12px;
+  margin: 0 12px 12px;
+  background: rgba(255, 159, 64, 0.08);
+  border: 1px solid rgba(255, 159, 64, 0.25);
+  border-radius: 8px;
+}
+.warningsTitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--warning);
+  margin-bottom: 8px;
+}
+.warningItem {
+  font-size: 11px;
+  color: var(--textSecondary);
+  margin-bottom: 4px;
+}
+
+/* Section 3: Recommended label */
+.slipRecommended {
+  font-size: 9px;
+  color: var(--textMuted);
+  font-style: italic;
+}
+
+/* Section 4: Tab bar & Parlay Builder */
+.tabBar {
+  display: flex;
+  gap: 0;
+  padding: 0 12px 0;
+  margin: 0;
+  border-bottom: 1px solid var(--stroke);
+  background: var(--bg1);
+}
+
+.tabBtn {
+  padding: 10px 16px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--textSecondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tabBtn:hover { color: var(--textPrimary); }
+
+.tabBtn.isActive {
+  color: var(--accentB);
+  border-bottom-color: var(--accentB);
+}
+
+.tabPanel {
+  padding: 12px 12px 24px;
+}
+
+.tabPanel.hidden { display: none !important; }
+
+.builderCard {
+  margin-bottom: 12px;
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+}
+
+.builderForm {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.builderForm .input,
+.builderForm .select {
+  min-width: 0;
+}
+
+.builderForm .input:first-of-type { grid-column: 1; }
+.builderForm .input:nth-of-type(2) { grid-column: 2; }
+.builderForm .input:nth-of-type(3) { grid-column: 1; }
+.builderForm .select { grid-column: 2; }
+.builderForm .input:nth-of-type(5) { grid-column: 1; }
+.builderForm .input:nth-of-type(6) { grid-column: 2; }
+.builderForm #btnAddLeg { grid-column: 1 / -1; }
+
+.builderPoolSection,
+.builderWorkspaceSection {
+  margin-bottom: 12px;
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+}
+
+.builderPoolFilters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+  margin-bottom: 10px;
+}
+
+.filterGroup {
+  padding: 8px 10px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filterGroupHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.filterLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--textMuted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.filterActions {
+  display: flex;
+  gap: 4px;
+}
+
+.filterActionBtn {
+  border: 1px solid var(--stroke);
+  background: transparent;
+  color: var(--textSecondary);
+  font-size: 10px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.filterActionBtn:hover {
+  background: rgba(185, 190, 255, 0.08);
+  color: var(--textPrimary);
+}
+
+.filterChipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.filterChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(185, 190, 255, 0.16);
+  background: rgba(11, 15, 26, 0.8);
+  color: var(--textSecondary);
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.filterChip.selected {
+  background: linear-gradient(135deg, var(--accentA), var(--accentB));
+  color: #fff;
+  border-color: transparent;
+}
+
+.filterChipLogo {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(185, 190, 255, 0.2);
+  flex-shrink: 0;
+}
+
+.filterRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.filterField {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.filterFieldLabel {
+  font-size: 10px;
+  color: var(--textMuted);
+}
+
+.devigRow {
+  margin-top: 6px;
+  display: flex;
+  gap: 16px;
+}
+
+.devigColumn {
+  flex: 1;
+  min-width: 0;
+}
+
+.devigLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--textMuted);
+  margin-bottom: 4px;
+}
+
+.devigOption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--textSecondary);
+  margin-bottom: 2px;
+}
+
+.devigOption input[type="radio"] {
+  width: 12px;
+  height: 12px;
+}
+
+.builderFilterInput,
+.builderFilterSelect {
+  min-width: 0;
+}
+
+.builderPoolHint {
+  font-size: 11px;
+  color: var(--textMuted);
+  margin-bottom: 6px;
+}
+
+.builderPoolList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.builderLegCard {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  cursor: grab;
+  font-size: 11px;
+  color: var(--textSecondary);
+  transition: opacity 0.15s;
+}
+
+.builderLegCard:hover {
+  background: rgba(11, 15, 26, 0.9);
+  border-color: var(--accentB);
+}
+
+.builderLegCard:active {
+  cursor: grabbing;
+}
+
+.builderLegCard.dragging {
+  opacity: 0.4;
+}
+
+.builderLegCardText {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--textSecondary);
+  line-height: 1.35;
+}
+
+.builderLegAddBtn {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accentB);
+  background: rgba(124, 99, 255, 0.15);
+  border: 1px solid rgba(124, 99, 255, 0.4);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.builderLegAddBtn:hover {
+  background: rgba(124, 99, 255, 0.25);
+  color: var(--textPrimary);
+}
+
+.builderLegGhost {
+  padding: 8px 10px;
+  border: 2px dashed var(--stroke);
+  border-radius: 6px;
+  background: transparent;
+  min-height: 36px;
+  pointer-events: none;
+}
+
+.builderDropZone.dragOver {
+  background: rgba(124, 99, 255, 0.08);
+  border-radius: 6px;
+}
+
+.builderLegs {
+  margin-bottom: 12px;
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+}
+
+.builderLegsList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  min-height: 60px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.builderLegRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+}
+
+.builderLegLabel {
+  font-size: 11px;
+  color: var(--textSecondary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.builderLegRemove {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--stroke);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--textMuted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.builderLegRemove:hover {
+  background: rgba(200, 100, 100, 0.2);
+  color: var(--metricBad);
+  border-color: rgba(200, 100, 100, 0.4);
+}
+
+.builderStats {
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+}
+
+.builderMetrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.builderSuggestionSection {
+  padding: 12px;
+  background: rgba(200, 150, 80, 0.1);
+  border: 1px solid rgba(200, 150, 80, 0.3);
+  border-radius: 8px;
+  margin-top: 8px;
+}
+
+.builderSuggestionSection.hidden {
+  display: none;
+}
+
+.builderSuggestionText {
+  font-size: 12px;
+  color: var(--textSecondary);
+  margin-top: 4px;
+}
+
+.builderMetric {
+  text-align: center;
+  padding: 10px 8px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+}
+
+.builderMetricValue {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accentB);
+  margin-bottom: 2px;
+}
+
+.builderMetricValue.metricGood { color: var(--metricGood); }
+.builderMetricValue.metricModerate { color: var(--metricModerate); }
+.builderMetricValue.metricBad { color: var(--metricBad); }
+
+.builderMetricLabel {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--textMuted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Section 4: Tab bar & Parlay Builder */
+.tabBar {
+  display: flex;
+  gap: 0;
+  padding: 0 12px;
+  background: var(--bg1);
+  border-bottom: 1px solid var(--stroke);
+}
+
+.tabBtn {
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: var(--textSecondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-bottom: 2px solid transparent;
+}
+
+.tabBtn:hover {
+  color: var(--textPrimary);
+}
+
+.tabBtn.isActive {
+  color: var(--accentB);
+  border-bottom-color: var(--accentB);
+}
+
+.tabPanel {
+  padding-bottom: 12px;
+}
+
+.tabPanel.hidden {
+  display: none !important;
+}
+
+.builderCard {
+  margin: 12px;
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+}
+
+.builderForm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.builderForm .input,
+.builderForm .select {
+  flex: 1 1 120px;
+  min-width: 80px;
+}
+
+.builderForm .btnSecondary {
+  flex: 0 0 auto;
+}
+
+.builderLegs {
+  margin: 12px;
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+}
+
+.builderLegsList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 160px;
+  overflow-y: auto;
+  margin-top: 8px;
+}
+
+.builderLegRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+}
+
+.builderLegLabel {
+  font-size: 11px;
+  color: var(--textSecondary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.builderLegRemove {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--stroke);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--textMuted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.builderLegRemove:hover {
+  background: rgba(200, 100, 100, 0.2);
+  color: var(--metricBad);
+  border-color: rgba(200, 100, 100, 0.4);
+}
+
+.builderStats {
+  margin: 12px;
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+}
+
+.builderMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.builderMetric {
+  text-align: center;
+  padding: 10px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+}
+
+.builderMetricValue {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accentB);
+  margin-bottom: 2px;
+}
+
+.builderMetricValue.metricGood { color: var(--metricGood); }
+.builderMetricValue.metricModerate { color: var(--metricModerate); }
+.builderMetricValue.metricBad { color: var(--metricBad); }
+
+.builderMetricLabel {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--textMuted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Section 4: Tab bar & Parlay Builder */
+.tabBar {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  background: var(--bg1);
+  border-bottom: 1px solid var(--stroke);
+}
+
+.tabBtn {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: rgba(11, 15, 26, 0.6);
+  color: var(--textSecondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tabBtn:hover {
+  background: rgba(185, 190, 255, 0.05);
+  color: var(--textPrimary);
+}
+
+.tabBtn.isActive {
+  background: linear-gradient(135deg, var(--accentA), var(--accentB));
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 0 12px var(--glow1);
+}
+
+.tabPanel {
+  padding: 12px 0;
+}
+
+.tabPanel.hidden {
+  display: none !important;
+}
+
+.builderCard {
+  margin: 0 12px 12px;
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+}
+
+.builderForm {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.builderForm .input,
+.builderForm .select {
+  min-width: 0;
+}
+
+.builderForm .input:nth-child(1),
+.builderForm .input:nth-child(2) {
+  grid-column: 1 / -1;
+}
+
+.builderForm .btnSecondary {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+.builderLegs {
+  margin: 0 12px 12px;
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+}
+
+.builderLegsList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.builderLegRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+}
+
+.builderLegLabel {
+  font-size: 11px;
+  color: var(--textSecondary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.builderLegRemove {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--stroke);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--textMuted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.builderLegRemove:hover {
+  background: rgba(200, 100, 100, 0.2);
+  color: var(--metricBad);
+  border-color: rgba(200, 100, 100, 0.4);
+}
+
+.builderStats {
+  margin: 0 12px 12px;
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+}
+
+.builderMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.builderMetric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+}
+
+.builderMetricValue {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accentB);
+}
+
+.builderMetricValue.metricGood { color: var(--metricGood); }
+.builderMetricValue.metricModerate { color: var(--metricModerate); }
+.builderMetricValue.metricBad { color: var(--metricBad); }
+
+.builderMetricLabel {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--textMuted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Section 4: Tab bar & Parlay Builder */
+.tabBar {
+  display: flex;
+  gap: 0;
+  padding: 0 12px 0;
+  background: var(--bg1);
+  border-bottom: 1px solid var(--stroke);
+}
+
+.tabBtn {
+  padding: 10px 16px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--textSecondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tabBtn:hover {
+  color: var(--textPrimary);
+}
+
+.tabBtn.isActive {
+  color: var(--accentB);
+  border-bottom-color: var(--accentB);
+}
+
+.tabPanel {
+  padding-bottom: 12px;
+}
+
+.tabPanel.hidden {
+  display: none !important;
+}
+
+.builderCard,
+.builderLegs,
+.builderStats {
+  margin: 12px;
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+}
+
+.builderForm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.builderForm .input,
+.builderForm .select {
+  flex: 1 1 100px;
+  min-width: 80px;
+}
+
+.builderForm .btnSecondary {
+  flex: 0 0 auto;
+}
+
+.builderLegsList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.builderLegRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.builderLegLabel {
+  flex: 1;
+  min-width: 0;
+  color: var(--textSecondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.builderLegRemove {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--stroke);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--textMuted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.builderLegRemove:hover {
+  background: rgba(200, 100, 100, 0.2);
+  border-color: var(--metricBad);
+  color: var(--metricBad);
+}
+
+.builderMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.builderMetric {
+  padding: 10px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.builderMetricValue {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accentB);
+  margin-bottom: 2px;
+}
+
+.builderMetricValue.metricGood { color: var(--metricGood); }
+.builderMetricValue.metricModerate { color: var(--metricModerate); }
+.builderMetricValue.metricBad { color: var(--metricBad); }
+
+.builderMetricLabel {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--textMuted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Section 4: Tab bar & Parlay Builder */
+.tabBar {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  background: var(--bg1);
+  border-bottom: 1px solid var(--stroke);
+}
+
+.tabBtn {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--textSecondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tabBtn:hover {
+  background: rgba(185, 190, 255, 0.05);
+  color: var(--textPrimary);
+}
+
+.tabBtn.isActive {
+  background: rgba(123, 99, 255, 0.15);
+  color: var(--accentB);
+  border-color: rgba(123, 99, 255, 0.3);
+}
+
+.tabPanel {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tabPanel.hidden {
+  display: none !important;
+}
+
+.builderCard {
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+}
+
+.builderForm {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.builderForm .input,
+.builderForm .select {
+  grid-column: span 1;
+}
+
+.builderForm .input:nth-child(5),
+.builderForm .input:nth-child(6),
+.builderForm .input:nth-child(7) {
+  grid-column: span 1;
+}
+
+.builderForm .btnSecondary {
+  grid-column: 1 / -1;
+}
+
+.builderLegs {
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+}
+
+.builderLegsList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.builderLegRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+}
+
+.builderLegLabel {
+  font-size: 11px;
+  color: var(--textSecondary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.builderLegRemove {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  margin-left: 8px;
+  border: 1px solid var(--stroke);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--textMuted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.builderLegRemove:hover {
+  background: rgba(200, 100, 100, 0.2);
+  color: var(--metricBad);
+  border-color: rgba(200, 100, 100, 0.4);
+}
+
+.builderStats {
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+}
+
+.builderMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.builderMetric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.builderMetricValue {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accentB);
+}
+
+.builderMetricValue.metricGood {
+  color: var(--metricGood);
+}
+
+.builderMetricValue.metricModerate {
+  color: var(--metricModerate);
+}
+
+.builderMetricValue.metricBad {
+  color: var(--metricBad);
+}
+
+.builderMetricLabel {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--textMuted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ============================================================
+   Section 4: Tab bar & Parlay Builder
+   ============================================================ */
+.tabBar {
+  display: flex;
+  gap: 2px;
+  padding: 0 12px 0;
+  background: var(--bg1);
+  border-bottom: 1px solid var(--stroke);
+}
+.tabBtn {
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  color: var(--textSecondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all 0.2s;
+}
+.tabBtn:hover { color: var(--textPrimary); }
+.tabBtn.isActive {
+  color: var(--accentB);
+  border-bottom-color: var(--accentB);
+}
+.tabPanel { padding: 12px; }
+.tabPanel.hidden { display: none !important; }
+
+.builderCard, .builderLegs, .builderStats {
+  margin-bottom: 12px;
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+}
+.builderCard .label, .builderLegs .label, .builderStats .label {
+  margin-bottom: 8px;
+}
+.builderForm {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+}
+.builderForm .input, .builderForm .select { grid-column: span 1; }
+.builderForm #builderPlayer { grid-column: 1; }
+.builderForm #builderProp { grid-column: 2; }
+.builderForm #builderLine { grid-column: 1; }
+.builderForm #builderSide { grid-column: 2; }
+.builderForm #builderOdds { grid-column: 1; }
+.builderForm #builderHitPct { grid-column: 2; }
+.builderForm #btnAddLeg { grid-column: 1 / -1; }
+
+.builderLegsList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+.builderLegRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  font-size: 11px;
+}
+.builderLegLabel { flex: 1; min-width: 0; color: var(--textSecondary); }
+.builderLegRemove {
+  width: 22px; height: 22px;
+  padding: 0;
+  border: 1px solid var(--stroke);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--textMuted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+.builderLegRemove:hover { background: rgba(200, 80, 80, 0.3); color: var(--textPrimary); }
+
+.builderMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.builderMetric {
+  padding: 10px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  text-align: center;
+}
+.builderMetricValue {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accentB);
+  margin-bottom: 2px;
+}
+.builderMetricValue.metricGood { color: var(--metricGood); }
+.builderMetricValue.metricModerate { color: var(--metricModerate); }
+.builderMetricValue.metricBad { color: var(--metricBad); }
+.builderMetricLabel {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--textMuted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Section 4: Tab bar */
+.tabBar {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  background: var(--bg1);
+  border-bottom: 1px solid var(--stroke);
+}
+
+.tabBtn {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  background: rgba(11, 15, 26, 0.6);
+  color: var(--textSecondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tabBtn:hover {
+  background: var(--cardHover);
+  color: var(--textPrimary);
+}
+
+.tabBtn.isActive {
+  background: linear-gradient(135deg, var(--accentA), var(--accentB));
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 0 12px var(--glow1);
+}
+
+.tabPanel {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tabPanel.hidden { display: none !important; }
+
+/* Section 4: Parlay Builder */
+.builderCard {
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.builderForm {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.builderForm .input,
+.builderForm .select {
+  min-width: 0;
+}
+
+.builderForm .label { grid-column: 1 / -1; }
+.builderForm #builderPlayer { grid-column: 1; }
+.builderForm #builderProp { grid-column: 2; }
+.builderForm #builderLine { grid-column: 1; }
+.builderForm #builderSide { grid-column: 2; }
+.builderForm #builderOdds { grid-column: 1; }
+.builderForm #builderHitPct { grid-column: 2; }
+.builderForm #btnAddLeg { grid-column: 1 / -1; }
+
+.builderLegs {
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.builderLegsList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.builderLegRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  gap: 8px;
+}
+
+.builderLegLabel {
+  font-size: 11px;
+  color: var(--textSecondary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.builderLegRemove {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--stroke);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--textMuted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.builderLegRemove:hover {
+  background: rgba(200, 100, 100, 0.2);
+  color: var(--metricBad);
+  border-color: var(--metricBad);
+}
+
+.builderStats {
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.builderMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.builderMetric {
+  text-align: center;
+  padding: 10px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+}
+
+.builderMetricValue {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accentB);
+  margin-bottom: 2px;
+}
+
+.builderMetricValue.metricGood { color: var(--metricGood); }
+.builderMetricValue.metricModerate { color: var(--metricModerate); }
+.builderMetricValue.metricBad { color: var(--metricBad); }
+
+.builderMetricLabel {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--textMuted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* =============================================================================
+   FIX 7 — Portfolio metrics: five cards, 3 top + 2 bottom; no overlap.
+   #metricsViewAllHint stays above .metricsGrid (popup.html).
+   ============================================================================= */
+section.metrics {
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  padding: 12px;
+  margin: 0 12px 12px;
+  width: calc(100% - 24px);
+  max-width: 100%;
+  box-sizing: border-box;
+  gap: 8px;
+}
+
+section.metrics .metricsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+section.metrics .metricsRow--top {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+
+section.metrics .metricsRow--bottom {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+}
+
+section.metrics .metricsRow--bottom .metricCard {
+  width: calc((100% - 16px) / 3);
+  flex: 0 0 calc((100% - 16px) / 3);
+}
+
+section.metrics .metricCard {
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  min-width: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  grid-area: unset !important;
+}
+
+section.metrics .metricValue {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--textPrimary);
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  text-align: center;
+  min-width: 0;
+}
+
+section.metrics .metricValue.metricGood {
+  color: var(--metricGood);
+}
+
+section.metrics .metricValue.metricModerate {
+  color: var(--metricModerate);
+}
+
+section.metrics .metricValue.metricBad {
+  color: var(--metricBad);
+}
+
+section.metrics .metricLabel {
+  font-size: 10px;
+  color: var(--textMuted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: break-word;
+  min-width: 0;
+}
+
+section.metrics .metricsViewAllHint {
+  overflow: visible;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+/* Capture instruction: full width below buttons so long text never clips */
+#captureStatus.captureStatus,
+.captureRow .captureStatus {
+  flex: 1 1 100%;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding-top: 2px;
+  overflow: visible !important;
+  white-space: normal !important;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.4;
+  max-width: 100%;
+}
+
+/* Don’t let parent card clip the wrapped status line */
+#portfolioSection.card {
+  overflow: visible;
+}

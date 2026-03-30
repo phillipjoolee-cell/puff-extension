@@ -1,0 +1,409 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PUFF</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+
+  <body>
+    <div class="app">
+      <!-- Top -->
+      <header class="topbar">
+        <div class="brand">
+          <div class="logo" aria-label="PUFF">
+            <!-- Replace this SVG with your final #8 logo SVG -->
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M6.5 15.2c2.7-5.7 7.5-7.9 11-6.6"
+                stroke="rgba(185,190,255,.95)"
+                stroke-width="2.2"
+                stroke-linecap="round"
+              />
+              <path
+                d="M7.6 17.2c2.7-5.2 7.1-7 10.2-5.8"
+                stroke="rgba(120,160,255,.85)"
+                stroke-width="2.2"
+                stroke-linecap="round"
+              />
+              <path
+                d="M8.8 19c2.3-4.3 6.1-5.8 8.7-4.9"
+                stroke="rgba(140,105,255,.75)"
+                stroke-width="2.2"
+                stroke-linecap="round"
+              />
+              <circle cx="18.9" cy="6.1" r="1.1" fill="rgba(255,255,255,.8)" />
+            </svg>
+          </div>
+
+          <div class="brandText">
+            <div class="titleRow">
+              <div class="title">PUFF</div>
+              <div class="subtitle">PORTFOLIO UTILITY · FORECASTING</div>
+            </div>
+          </div>
+        </div>
+
+        <button id="btnSettings" class="iconBtn" title="Settings" aria-label="Settings">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M12 15.3a3.3 3.3 0 1 0 0-6.6 3.3 3.3 0 0 0 0 6.6Z" stroke="rgba(255,255,255,.75)" stroke-width="1.8"/>
+            <path d="M19.4 13.7v-3.4l-2-.6c-.2-.6-.5-1.2-.9-1.7l1-1.9-2.4-2.4-1.9 1c-.5-.4-1.1-.7-1.7-.9l-.6-2H10l-.6 2c-.6.2-1.2.5-1.7.9l-1.9-1-2.4 2.4 1 1.9c-.4.5-.7 1.1-.9 1.7l-2 .6v3.4l2 .6c.2.6.5 1.2.9 1.7l-1 1.9 2.4 2.4 1.9-1c.5.4 1.1.7 1.7.9l.6 2h3.4l.6-2c.6-.2 1.2-.5 1.7-.9l1.9 1 2.4-2.4-1-1.9c.4-.5.7-1.1.9-1.7l2-.6Z" stroke="rgba(255,255,255,.35)" stroke-width="1.4"/>
+          </svg>
+        </button>
+      </header>
+
+      <!-- Tab bar (Section 4: Portfolio | Builder) -->
+      <div class="tabBar">
+        <button id="tabPortfolioBtn" class="tabBtn isActive" data-tab="portfolio">Portfolio</button>
+        <button id="tabBuilderBtn" class="tabBtn" data-tab="builder">Parlay Builder</button>
+      </div>
+
+      <!-- Portfolio tab content -->
+      <div id="panelPortfolio" class="tabPanel">
+      <!-- Capture -->
+      <section class="card" id="portfolioSection">
+        <div class="row captureRow">
+          <button id="btnSelectArea" class="btnSecondary">Select Area</button>
+          <button id="btnCapture" class="btnSecondary">Capture</button>
+          <div class="status captureStatus" id="captureStatus">No legs captured.</div>
+        </div>
+      </section>
+
+      <!-- Controls -->
+      <section class="controls">
+        <div class="controlCard">
+          <div class="label">Risk Profile</div>
+          <div class="segmented" id="riskSegment">
+            <button data-profile="stable" class="segBtn isActive">Stable</button>
+            <button data-profile="growth" class="segBtn">Growth</button>
+            <button data-profile="upside" class="segBtn">Upside</button>
+          </div>
+        </div>
+
+        <div class="controlCard">
+          <div class="label">Leg Count</div>
+          <input id="legCount" type="number" min="2" max="15" value="3" class="input" style="max-width:80px" title="Legs per slip (2–15)" />
+        </div>
+
+        <div class="controlCard">
+          <div class="label">Bankroll ($)</div>
+          <input
+            id="bankrollInput"
+            type="number"
+            min="0"
+            step="any"
+            placeholder="Optional"
+            class="input"
+            style="max-width: 100px"
+            title="Optional — used for capital allocation when generating"
+          />
+        </div>
+      </section>
+
+      <div class="settingsSection" id="bankrollSection">
+        <div class="settingsSectionTitle">Sportsbook Bankrolls</div>
+        <p class="settingsHint">Select the books you have accounts at and enter your current balance. Resets daily.</p>
+        <div id="bankrollBookList" class="bankrollBookList"></div>
+        <div class="bankrollTotal">Total: <span id="bankrollTotalAmount">$0</span></div>
+      </div>
+
+      <!-- CTA -->
+      <section class="cta">
+        <button id="btnGenerate" class="btnPrimary">
+          <span class="plus">+</span>
+          Generate Portfolio
+        </button>
+        <div class="hint" id="generateHint">Capture legs first, then generate.</div>
+        <!-- Loading overlay (Section 3) -->
+        <div class="loadingOverlay hidden" id="loadingOverlay">
+          <div class="loadingSpinner"></div>
+          <div class="loadingText">Generating portfolio…</div>
+        </div>
+      </section>
+
+      <!-- Metrics (Section 3: exactly 5 metrics — 3 top + 2 centered bottom) -->
+      <section class="metrics">
+        <div id="metricsViewAllHint" class="metricsViewAllHint hidden">
+          <span>Viewing single slip</span>
+          <button type="button" id="btnMetricsViewAll" class="linkBtn">View all slips</button>
+        </div>
+        <div class="metricsGrid">
+          <div class="metricsRow--top">
+            <div class="metricCard metricCard--ev">
+              <div class="metricValue" id="metricEv">+0.0%</div>
+              <div class="metricLabel">Projected EV</div>
+            </div>
+            <div class="metricCard metricCard--hit">
+              <div class="metricValue" id="metricHitProb">0%</div>
+              <div class="metricLabel">Hit Probability</div>
+            </div>
+            <div class="metricCard metricCard--surv">
+              <div class="metricValue" id="metricSurvival">—</div>
+              <div class="metricLabel">Survival Probability</div>
+            </div>
+          </div>
+          <div class="metricsRow--bottom">
+            <div class="metricCard metricCard--div">
+              <div class="metricValue" id="metricDiversification">—</div>
+              <div class="metricLabel">Diversification Score</div>
+            </div>
+            <div class="metricCard metricCard--cap">
+              <div class="metricValue" id="metricCapital">—</div>
+              <div class="metricLabel">Capital Allocation</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Correlation Warnings -->
+      <section id="warningsSection" class="warningsSection hidden">
+        <div class="warningsTitle">⚠ Correlation Warnings</div>
+        <div id="warningsList" class="warningsList"></div>
+      </section>
+
+      <!-- Slips (Section 9: tour target id) -->
+      <section class="slips" id="slipsSection">
+        <div class="slipsFilterRow">
+          <label class="toggleLabel">
+            <input type="checkbox" id="bettableOnlyToggle" />
+            <span class="toggleText">Only show bettable slips</span>
+          </label>
+          <span id="bettableFilterHint" class="slipsFilterHint"></span>
+        </div>
+
+        <div class="slipsHeader">
+          <div class="label">Generated Slips</div>
+          <div class="meta" id="slipsMeta">0 positions · Stable</div>
+        </div>
+
+        <div id="slipsList" class="slipsList"></div>
+
+        <button id="btnBreakdown" class="linkBtn">View full breakdown</button>
+      </section>
+      </div><!-- /panelPortfolio -->
+
+      <!-- Section 5: Slip Editor (dedicated sub-page) -->
+      <div id="panelSlipEditor" class="tabPanel hidden">
+        <div class="slipEditorHeader">
+          <button id="btnSlipEditorBack" class="iconBtn linkBtn" aria-label="Back">← Back</button>
+          <span class="slipEditorTitle">Edit Slip</span>
+        </div>
+        <!-- Top box: current slip -->
+        <section class="slipEditorCurrent">
+          <div class="slipEditorRecommended">
+            <span class="slipEditorRecommendedLabel">Recommended</span>
+            <span class="slipEditorRecommendedSub">Engine-generated slip — edit below</span>
+          </div>
+          <div id="slipEditorLegs" class="slipEditorLegs">
+            <!-- Leg pills + ghost slots rendered by JS -->
+          </div>
+          <div id="slipEditorReplacement" class="slipEditorReplacement hidden"></div>
+        </section>
+        <!-- Props scroll list -->
+        <section class="slipEditorProps">
+          <div class="slipEditorPropsNote">The following props are already used in your portfolio</div>
+          <div id="slipEditorPropsList" class="slipEditorPropsList">
+            <!-- Prop cards rendered by JS -->
+          </div>
+        </section>
+      </div><!-- /panelSlipEditor -->
+
+      <!-- Builder tab content (Section 4): two-space layout, drag-and-drop, no manual Add Leg form -->
+      <div id="panelBuilder" class="tabPanel hidden">
+        <section class="builderPoolSection">
+          <div class="label">Captured Legs Pool</div>
+          <div class="builderPoolFilters">
+            <!-- Sportsbook filter -->
+            <div class="filterGroup" id="builderFilterSportsbookGroup">
+              <div class="filterGroupHeader">
+                <span class="filterLabel">Sportsbook</span>
+                <div class="filterActions">
+                  <button type="button" class="filterActionBtn" data-filter="sportsbook" data-action="selectAll">Select All</button>
+                  <button type="button" class="filterActionBtn" data-filter="sportsbook" data-action="clear">Clear</button>
+                </div>
+              </div>
+              <div class="filterChipRow" id="builderFilterSportsbookChips" aria-label="Filter by sportsbook"></div>
+            </div>
+
+            <!-- Sport / League filter -->
+            <div class="filterGroup" id="builderFilterLeagueGroup">
+              <div class="filterGroupHeader">
+                <span class="filterLabel">Sport / League</span>
+                <div class="filterActions">
+                  <button type="button" class="filterActionBtn" data-filter="league" data-action="selectAll">Select All</button>
+                  <button type="button" class="filterActionBtn" data-filter="league" data-action="clear">Clear</button>
+                </div>
+              </div>
+              <div class="filterChipRow" id="builderFilterLeagueChips" aria-label="Filter by sport or league"></div>
+            </div>
+
+            <!-- Market type filter -->
+            <div class="filterGroup" id="builderFilterMarketTypeGroup">
+              <div class="filterGroupHeader">
+                <span class="filterLabel">Market Type</span>
+                <div class="filterActions">
+                  <button type="button" class="filterActionBtn" data-filter="marketType" data-action="selectAll">Select All</button>
+                  <button type="button" class="filterActionBtn" data-filter="marketType" data-action="clear">Clear</button>
+                </div>
+              </div>
+              <div class="filterChipRow" id="builderFilterMarketTypeChips" aria-label="Filter by market type"></div>
+            </div>
+
+            <!-- Odds and EV -->
+            <div class="filterRow">
+              <div class="filterField">
+                <label class="filterFieldLabel" for="builderFilterMinOdds">Min Odds</label>
+                <input id="builderFilterMinOdds" class="input builderFilterInput" type="number" placeholder="-200" title="Min Odds (-200 to +200)" min="-200" max="200" />
+              </div>
+              <div class="filterField">
+                <label class="filterFieldLabel" for="builderFilterMaxOdds">Max Odds</label>
+                <input id="builderFilterMaxOdds" class="input builderFilterInput" type="number" placeholder="+200" title="Max Odds (-200 to +200)" min="-200" max="200" />
+              </div>
+              <div class="filterField">
+                <label class="filterFieldLabel" for="builderFilterMinEv">Min EV %</label>
+                <input id="builderFilterMinEv" class="input builderFilterInput" type="number" step="0.1" placeholder="3.0" title="Minimum EV %" />
+              </div>
+            </div>
+
+            <!-- Devig settings -->
+            <div class="filterGroup" id="builderFilterDevigGroup">
+              <div class="filterGroupHeader">
+                <span class="filterLabel">Devig Settings</span>
+              </div>
+              <div class="devigRow">
+                <div class="devigColumn">
+                  <div class="devigLabel">Devig Book</div>
+                  <label class="devigOption">
+                    <input type="radio" name="devigBook" value="recommended" checked />
+                    <span>OddsJam Recommended Book Weights</span>
+                  </label>
+                  <label class="devigOption">
+                    <input type="radio" name="devigBook" value="specific" />
+                    <span>Specific Sportsbook</span>
+                  </label>
+                  <select id="builderFilterDevigBookSelect" class="input builderFilterSelect" title="Devig sportsbook" disabled>
+                    <option value="">Choose sportsbook…</option>
+                  </select>
+                </div>
+                <div class="devigColumn">
+                  <div class="devigLabel">Devig Method</div>
+                  <label class="devigOption">
+                    <input type="radio" name="devigMethod" value="multiplicative" />
+                    <span>Multiplicative</span>
+                  </label>
+                  <label class="devigOption">
+                    <input type="radio" name="devigMethod" value="additive" />
+                    <span>Additive</span>
+                  </label>
+                  <label class="devigOption">
+                    <input type="radio" name="devigMethod" value="power" checked />
+                    <span>Power (default)</span>
+                  </label>
+                  <label class="devigOption">
+                    <input type="radio" name="devigMethod" value="worst" />
+                    <span>Worst Case</span>
+                  </label>
+                  <label class="devigOption">
+                    <input type="radio" name="devigMethod" value="best" />
+                    <span>Best Case</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Date range, Game, Market width, Bet warnings -->
+            <div class="filterRow">
+              <div class="filterField">
+                <label class="filterFieldLabel" for="builderFilterDateFrom">Date from</label>
+                <input id="builderFilterDateFrom" class="input builderFilterInput" type="date" />
+              </div>
+              <div class="filterField">
+                <label class="filterFieldLabel" for="builderFilterDateTo">Date to</label>
+                <input id="builderFilterDateTo" class="input builderFilterInput" type="date" />
+              </div>
+              <div class="filterField">
+                <label class="filterFieldLabel" for="builderFilterMarketWidth">Market width</label>
+                <input id="builderFilterMarketWidth" class="input builderFilterInput" type="number" step="0.1" placeholder="e.g. 10" />
+              </div>
+            </div>
+
+            <div class="filterRow">
+              <div class="filterField">
+                <label class="filterFieldLabel" for="builderFilterGame">Game</label>
+                <input id="builderFilterGame" class="input builderFilterInput" type="text" placeholder="Search matchup" />
+              </div>
+              <div class="filterField">
+                <label class="filterFieldLabel">Bet warnings</label>
+                <div class="filterChipRow" id="builderFilterBetWarningsChips" aria-label="Filter by bet warnings"></div>
+              </div>
+            </div>
+          </div>
+          <div class="builderPoolHint">Click a leg or "+ Add" to add it to your parlay below.</div>
+          <div id="builderPoolList" class="builderPoolList" role="list">
+            <!-- Leg cards from captured legs; click or drag into building space -->
+          </div>
+        </section>
+        <section class="builderWorkspaceSection">
+          <div class="label">Parlay Building Space</div>
+          <div id="builderLegsList" class="builderLegsList builderDropZone" role="list" aria-label="Drop legs here or click legs above to add">
+            <!-- Dropped legs; ghost placeholder shown when dragging -->
+          </div>
+        </section>
+        <section class="builderStats">
+          <div class="label">Live metrics</div>
+          <div class="builderMetrics">
+            <div class="builderMetric">
+              <span class="builderMetricValue" id="builderCombinedOdds">—</span>
+              <span class="builderMetricLabel">Combined odds</span>
+            </div>
+            <div class="builderMetric">
+              <span class="builderMetricValue" id="builderProjectedEv">—</span>
+              <span class="builderMetricLabel">Projected EV</span>
+            </div>
+            <div class="builderMetric">
+              <span class="builderMetricValue" id="builderHitProb">—</span>
+              <span class="builderMetricLabel">Hit probability</span>
+            </div>
+            <div class="builderMetric">
+              <span class="builderMetricValue" id="builderSurvival">—</span>
+              <span class="builderMetricLabel">Survival probability</span>
+            </div>
+            <div class="builderMetric">
+              <span class="builderMetricValue" id="builderDiversification">—</span>
+              <span class="builderMetricLabel">Diversification score</span>
+            </div>
+            <div class="builderMetric">
+              <span class="builderMetricValue" id="builderCapital">—</span>
+              <span class="builderMetricLabel">Capital allocation</span>
+            </div>
+          </div>
+        </section>
+        <section id="builderSuggestionSection" class="builderSuggestionSection hidden">
+          <div class="label">Suggestion</div>
+          <div id="builderSuggestionText" class="builderSuggestionText"></div>
+        </section>
+      </div><!-- /panelBuilder -->
+
+      <!-- Section 9: Onboarding tour overlay -->
+      <div id="onboardingOverlay" class="onboardingOverlay hidden">
+        <div class="onboardingBackdrop"></div>
+        <div class="onboardingSpotlight" id="onboardingSpotlight"></div>
+        <div class="onboardingCard" id="onboardingCard">
+          <div class="onboardingStep" id="onboardingStepText"></div>
+          <div class="onboardingArrow" id="onboardingArrow"></div>
+          <div class="onboardingActions">
+            <button id="onboardingDismiss" class="linkBtn">Skip tour</button>
+            <div class="onboardingNav">
+              <button id="onboardingPrev" class="btnSecondary" disabled>← Back</button>
+              <button id="onboardingNext" class="btnPrimary">Next →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
+

@@ -1,0 +1,36 @@
+[
+  {
+    "id": "8ce09bb6",
+    "source": "unknown",
+    "book": "D",
+    "sport": null,
+    "league": null,
+    "market": "Points",
+    "participant": "A",
+    "side": "over",
+    "line": null,
+    "odds_american": -110,
+    "ev_pct": null,
+    "hit_prob_pct": 50.0,
+    "fair_odds_american": null,
+    "url": null,
+    "captured_at": "2026-03-21T01:51:26.232703Z"
+  },
+  {
+    "id": "e8d0af1b",
+    "source": "unknown",
+    "book": "F",
+    "sport": null,
+    "league": null,
+    "market": "Moneyline",
+    "participant": "B",
+    "side": "home",
+    "line": null,
+    "odds_american": 120,
+    "ev_pct": null,
+    "hit_prob_pct": 45.0,
+    "fair_odds_american": null,
+    "url": null,
+    "captured_at": "2026-03-21T01:51:26.232721Z"
+  }
+]

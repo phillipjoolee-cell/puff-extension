@@ -1,0 +1,255 @@
+/* PUFF Options / Landing Page — Section 11 */
+:root {
+  --bg0: #070a12;
+  --bg1: #0b0f1a;
+  --card: #141b28;
+  --stroke: rgba(185, 190, 255, 0.1);
+  --textPrimary: rgba(255, 255, 255, 0.95);
+  --textSecondary: rgba(255, 255, 255, 0.6);
+  --textMuted: rgba(255, 255, 255, 0.35);
+  --accentA: #7c63ff;
+  --accentB: #78a0ff;
+  --input: rgba(11, 15, 26, 0.8);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  color: var(--textPrimary);
+  background: var(--bg0);
+  min-height: 100vh;
+}
+
+.optionsPage {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+.optionsHeader {
+  margin-bottom: 32px;
+}
+.optionsHeader h1 {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: var(--textPrimary);
+}
+.optionsSub {
+  font-size: 13px;
+  color: var(--textSecondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.optionsMain {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Sportsbook bankrolls (per-book balances; list populated by options.js) */
+.settingsSection {
+  padding: 20px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+}
+.settingsSectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--textPrimary);
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.settingsHint {
+  font-size: 12px;
+  color: var(--textSecondary);
+  margin: 0 0 16px;
+  line-height: 1.45;
+}
+.bankrollBookList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 4px 0;
+  min-height: 24px;
+}
+.bankrollTotal {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--textMuted);
+  text-align: right;
+}
+#bankrollTotalAmount {
+  color: var(--accentB);
+  font-weight: 600;
+}
+
+.bankrollExpiryNotice {
+  font-size: 12px;
+  color: rgba(255, 180, 100, 0.95);
+  margin: 0 0 10px;
+  line-height: 1.45;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.bankrollBookRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.bankrollBookLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  flex: 1;
+}
+.bankrollBookLabel input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accentB);
+}
+.bankrollBookName {
+  font-size: 13px;
+  color: var(--textPrimary);
+}
+.bankrollInputWrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.bankrollInputWrapper.hidden {
+  display: none;
+}
+.bankrollDollar {
+  color: var(--textMuted);
+  font-size: 13px;
+}
+.bankrollInput {
+  width: 80px;
+  background: var(--input);
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  padding: 4px 8px;
+  color: var(--textPrimary);
+  font-size: 13px;
+}
+.bankrollInput:focus {
+  outline: none;
+  border-color: var(--accentB);
+}
+
+.optionsSection {
+  padding: 20px;
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+}
+.optionsSection h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--textPrimary);
+  margin: 0 0 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.field {
+  margin-bottom: 16px;
+}
+.field:last-child { margin-bottom: 0; }
+
+.fieldRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--textSecondary);
+  margin-bottom: 6px;
+}
+
+.field input,
+.field select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--stroke);
+  border-radius: 6px;
+  background: rgba(11, 15, 26, 0.8);
+  color: var(--textPrimary);
+  font-size: 13px;
+}
+.field input:focus,
+.field select:focus {
+  outline: none;
+  border-color: var(--accentB);
+  box-shadow: 0 0 12px rgba(120, 160, 255, 0.2);
+}
+
+.help {
+  display: block;
+  font-size: 11px;
+  color: var(--textMuted);
+  margin-top: 6px;
+}
+
+.toggleList {
+  margin-bottom: 16px;
+}
+.toggleList:last-child { margin-bottom: 0; }
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--textPrimary);
+}
+.toggleRow input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accentB);
+}
+
+.optionsActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.btnPrimary {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--accentA), var(--accentB));
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btnPrimary:hover {
+  opacity: 0.95;
+}
+
+.optStatus {
+  font-size: 12px;
+  color: var(--textMuted);
+}

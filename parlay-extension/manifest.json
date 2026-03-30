@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "PUFF",
+  "version": "0.1.0",
+  "description": "Portoflio Utility for slips",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "icons": {
+    "128": "clear_puff_logo.png"
+  },
+  "actions": {
+    "default_popup": "popup.html",
+    "default_title": "PUFF",
+    "default_icon": {
+      "128": "clear_puff_logo.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  }
+}
+

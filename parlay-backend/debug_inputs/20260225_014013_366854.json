@@ -1,0 +1,19 @@
+[
+  {
+    "id": "50de1765",
+    "source": "test",
+    "book": "DraftKings",
+    "sport": null,
+    "league": null,
+    "market": "Points",
+    "participant": "LeBron James",
+    "side": "over",
+    "line": 27.5,
+    "odds_american": -110,
+    "ev_pct": 2.0,
+    "hit_prob_pct": 55.0,
+    "fair_odds_american": null,
+    "url": null,
+    "captured_at": null
+  }
+]

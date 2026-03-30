@@ -1,0 +1,36 @@
+[
+  {
+    "id": "2743fd95",
+    "source": "extension",
+    "book": "draftkings",
+    "sport": null,
+    "league": null,
+    "market": "Prop",
+    "participant": "| Team Total",
+    "side": "over",
+    "line": 2.5,
+    "odds_american": 2000,
+    "ev_pct": null,
+    "hit_prob_pct": 35.32,
+    "fair_odds_american": null,
+    "url": null,
+    "captured_at": "2026-03-17T08:54:03.549000Z"
+  },
+  {
+    "id": "af268d93",
+    "source": "extension",
+    "book": "Unknown Book",
+    "sport": "NBA",
+    "league": "NBA",
+    "market": "Prop",
+    "participant": "Minnesota Timberwolves Anthony Edwards",
+    "side": "over",
+    "line": 27.5,
+    "odds_american": 178,
+    "ev_pct": null,
+    "hit_prob_pct": 35.32,
+    "fair_odds_american": null,
+    "url": null,
+    "captured_at": "2026-03-17T08:54:03.554000Z"
+  }
+]

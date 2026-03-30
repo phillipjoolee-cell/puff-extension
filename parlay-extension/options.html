@@ -1,0 +1,119 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PUFF Settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <div class="optionsPage">
+      <header class="optionsHeader">
+        <h1>PUFF Settings</h1>
+        <p class="optionsSub">Configure capital, risk, odds filters, and data warnings. Changes apply across the extension.</p>
+      </header>
+
+      <main class="optionsMain">
+        <section class="optionsSection">
+          <h2>Capital & Risk</h2>
+          <div class="field">
+            <label for="optCapital">Capital amount</label>
+            <input id="optCapital" type="number" min="0" step="1" placeholder="e.g. 500" />
+            <span class="help">Your current bankroll. Used for unit sizing and allocation.</span>
+          </div>
+          <div class="field">
+            <label for="optRiskPct">Risk per session %</label>
+            <input id="optRiskPct" type="number" min="1" max="50" step="0.5" placeholder="8" />
+            <span class="help">% of capital to risk per session (default 8).</span>
+          </div>
+        </section>
+
+        <div class="settingsSection" id="bankrollSection">
+          <div class="settingsSectionTitle">Sportsbook Bankrolls</div>
+          <p id="bankrollExpiryNotice" class="bankrollExpiryNotice hidden" role="status"></p>
+          <p class="settingsHint">Select the books you have accounts at and enter your current balance.</p>
+          <div id="bankrollBookList" class="bankrollBookList">
+            <!-- dynamically populated from captured legs -->
+          </div>
+          <div class="bankrollTotal">
+            Total bankroll: <span id="bankrollTotalAmount">$0</span>
+          </div>
+        </div>
+
+        <section class="optionsSection">
+          <h2>Odds & Edge</h2>
+          <div class="fieldRow">
+            <div class="field">
+              <label for="optMinOdds">Min odds</label>
+              <input id="optMinOdds" type="number" placeholder="e.g. -500" />
+            </div>
+            <div class="field">
+              <label for="optMaxOdds">Max odds</label>
+              <input id="optMaxOdds" type="number" placeholder="e.g. +500" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="optMinEdge">Min edge %</label>
+            <input id="optMinEdge" type="number" min="0" step="0.1" placeholder="e.g. 1.0" />
+            <span class="help">Minimum EV % to consider a leg.</span>
+          </div>
+        </section>
+
+        <section class="optionsSection">
+          <h2>Devig Method</h2>
+          <div class="field">
+            <label for="optDevig">No-vig calculation</label>
+            <select id="optDevig">
+              <option value="power" selected>Power (default)</option>
+              <option value="multiplicative">Multiplicative</option>
+              <option value="additive">Additive</option>
+              <option value="worst_case">Worst Case</option>
+              <option value="best_case">Best Case</option>
+            </select>
+            <span class="help">Controls how no-vig odds are derived — affects EV accuracy.</span>
+          </div>
+        </section>
+
+        <section class="optionsSection">
+          <h2>Data Warnings</h2>
+          <div class="toggleList">
+            <label class="toggleRow">
+              <input type="checkbox" id="optWarnSameGame" checked />
+              <span>Show "Same Game" warning</span>
+            </label>
+            <span class="help">Flags when multiple legs in a slip come from the same game (correlated risk).</span>
+          </div>
+          <div class="toggleList">
+            <label class="toggleRow">
+              <input type="checkbox" id="optWarnConflicting" checked />
+              <span>Show "Conflicting" warning</span>
+            </label>
+            <span class="help">Flags when legs may cancel each other out.</span>
+          </div>
+          <div class="toggleList">
+            <label class="toggleRow">
+              <input type="checkbox" id="optWarnPreviouslyUsed" checked />
+              <span>Show "Previously Used" warning</span>
+            </label>
+            <span class="help">Flags when a prop has already been used in another slip.</span>
+          </div>
+        </section>
+
+        <section class="optionsSection">
+          <h2>Backend</h2>
+          <div class="field">
+            <label for="optBackendUrl">Backend URL</label>
+            <input id="optBackendUrl" type="text" placeholder="http://127.0.0.1:8000" />
+            <span class="help">API base URL for portfolio generation.</span>
+          </div>
+        </section>
+
+        <div class="optionsActions">
+          <button id="optSave" class="btnPrimary">Save</button>
+          <span id="optStatus" class="optStatus"></span>
+        </div>
+      </main>
+    </div>
+    <script src="options.js"></script>
+  </body>
+</html>
