@@ -73,11 +73,18 @@
       <!-- Controls -->
       <section class="controls">
         <div class="controlCard">
-          <div class="label">Risk Profile</div>
-          <div class="segmented" id="riskSegment">
-            <button data-profile="stable" class="segBtn isActive">Stable</button>
-            <button data-profile="growth" class="segBtn">Growth</button>
-            <button data-profile="upside" class="segBtn">Upside</button>
+          <div class="label">Slip filters</div>
+          <div class="sliderSection" id="sliderSection">
+            <div class="sliderRow">
+              <label class="sliderLabel" for="minHitProb">Min Hit Prob</label>
+              <input type="range" id="minHitProb" min="1" max="40" value="12" step="1" class="puffSlider" />
+              <span class="sliderValue" id="minHitProbVal">12%</span>
+            </div>
+            <div class="sliderRow">
+              <label class="sliderLabel" for="minParlayEv">Min Parlay EV</label>
+              <input type="range" id="minParlayEv" min="5" max="150" value="20" step="5" class="puffSlider" />
+              <span class="sliderValue" id="minParlayEvVal">20%</span>
+            </div>
           </div>
         </div>
 
@@ -87,12 +94,12 @@
         </div>
 
         <div class="controlCard">
-          <div class="label">Bankroll ($)</div>
+          <div class="label">Risk Budget ($)</div>
           <input
             id="bankrollInput"
             type="number"
             min="0"
-            step="any"
+            step="1"
             placeholder="Optional"
             class="input"
             style="max-width: 100px"
@@ -102,10 +109,14 @@
       </section>
 
       <div class="settingsSection" id="bankrollSection">
-        <div class="settingsSectionTitle">Sportsbook Bankrolls</div>
-        <p class="settingsHint">Select the books you have accounts at and enter your current balance. Resets daily.</p>
+        <div class="settingsSectionTitle">Sportsbook Risk Budgets</div>
+        <p class="settingsHint">Select the books you have accounts at and enter your risk budget for each. Resets daily.</p>
         <div id="bankrollBookList" class="bankrollBookList"></div>
-        <div class="bankrollTotal">Total: <span id="bankrollTotalAmount">$0</span></div>
+        <div class="bankrollTotal">Total risk budget: <span id="bankrollTotalAmount">$0</span></div>
+        <div id="bankrollWarning" class="bankrollWarning" role="status" aria-live="polite"></div>
+        <button type="button" id="btnSaveBankrolls" class="btnSecondary bankrollSaveBtn">
+          Save risk budgets
+        </button>
       </div>
 
       <!-- CTA -->
@@ -150,7 +161,7 @@
             </div>
             <div class="metricCard metricCard--cap">
               <div class="metricValue" id="metricCapital">—</div>
-              <div class="metricLabel">Capital Allocation</div>
+              <div class="metricLabel">Risk per slip</div>
             </div>
           </div>
         </div>
@@ -174,7 +185,7 @@
 
         <div class="slipsHeader">
           <div class="label">Generated Slips</div>
-          <div class="meta" id="slipsMeta">0 positions · Stable</div>
+          <div class="meta" id="slipsMeta">0 positions · 12% min hit · 20% min EV</div>
         </div>
 
         <div id="slipsList" class="slipsList"></div>
@@ -375,7 +386,7 @@
             </div>
             <div class="builderMetric">
               <span class="builderMetricValue" id="builderCapital">—</span>
-              <span class="builderMetricLabel">Capital allocation</span>
+              <span class="builderMetricLabel">Risk per slip</span>
             </div>
           </div>
         </section>

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+import math
 import time
+from collections import defaultdict
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Tuple, Any, Literal
 from uuid import uuid4
@@ -26,6 +28,8 @@ from portfolio import (
     generate_portfolio,
     PortfolioSettings as PortfolioEngineSettings,
     Leg as PortfolioLeg,
+    build_portfolio_result,
+    Slip as EngineSlip,
 )
 
 import json
@@ -39,6 +43,20 @@ DEBUG_DIR = Path("debug_inputs")
 DEBUG_DIR.mkdir(exist_ok=True)
 
 API_VERSION = "1.0"
+# Single-leg EV above this (percent) is treated as bad data and dropped before generation.
+MAX_SINGLE_LEG_EV = 30.0
+# Post-filter defaults when the client omits slider thresholds (fractions).
+DEFAULT_MIN_HIT = 0.12
+DEFAULT_MIN_PEV = 0.20
+
+# Merge legs under a single canonical book name per parent / skin (most recognizable brand).
+BOOK_ALIASES = {
+    "Bovada": "Bodog",
+    "Borgata": "BetMGM",
+    "Sports Interaction": "BetMGM",
+    "Rizk": "Betsafe",
+    "Betsson": "Betsafe",
+}
 
 app = FastAPI(title="Parlay Builder API", version="0.1.0")
 
@@ -113,6 +131,8 @@ def normalize_leg(raw: RawLeg) -> NormalizedLeg:
     if captured.tzinfo is None:
         captured = captured.replace(tzinfo=timezone.utc)
 
+    ev_raw = raw.event.strip() if raw.event else None
+    gk_raw = raw.game_key.strip() if raw.game_key else None
     return NormalizedLeg(
         id=str(uuid4())[:8],
         source=raw.source.strip() if raw.source else "unknown",
@@ -127,6 +147,8 @@ def normalize_leg(raw: RawLeg) -> NormalizedLeg:
         ev_pct=raw.ev_pct,
         hit_prob_pct=raw.hit_prob_pct,
         fair_odds_american=fair_am,
+        event=ev_raw,
+        game_key=gk_raw,
         url=raw.url,
         captured_at=captured,
     )
@@ -165,6 +187,25 @@ def _parlay_estimated_prob(parlay: Parlay) -> float:
         p = (leg.hit_prob_pct / 100.0) if leg.hit_prob_pct is not None else _implied_prob_from_american(leg.odds_american)
         prob *= max(0.01, min(0.99, p))
     return prob
+
+
+def _filter_slips_by_hit_ev(
+    slips: List[EngineSlip],
+    min_hit: float,
+    min_parlay_ev: float,
+) -> List[EngineSlip]:
+    """Keep slips whose combined model hit prob and parlay EV meet slider thresholds."""
+    filtered: List[EngineSlip] = []
+    for slip in slips:
+        hit = 1.0
+        payout = 1.0
+        for sl in slip.legs:
+            hit *= sl.p_model
+            payout *= sl.decimal_odds
+        parlay_ev = hit * payout - 1
+        if hit >= min_hit and parlay_ev >= min_parlay_ev:
+            filtered.append(slip)
+    return filtered
 
 
 def _parlay_diversification_penalty(parlays: List[Parlay]) -> float:
@@ -486,138 +527,198 @@ def suggest(req: SuggestRequest):
         raw_legs = [RawLeg.model_validate(x) for x in req.legs]  # type: ignore
         legs_norm = [normalize_leg(r) for r in raw_legs]
 
-    # essentials-only logging
-    profile = getattr(req, "risk_profile", "growth")
-    logger.info("suggest called legs=%d profile=%s", len(legs_norm), profile)
+    logger.info("suggest called legs=%d", len(legs_norm))
 
     # still dump raw legs for offline debugging if DEBUG_DUMP_INPUTS enabled
     dump_legs_for_testing([l.model_dump(mode="json") for l in legs_norm])
 
-    # Map risk_profile to backend settings presets
-    # All modes: generate as many slips as mathematically possible; no hard cap per mode.
-    # Leg-count ranges per profile only (Stable 2-3, Growth 3, Upside 3-4).
-    presets = {
-        "stable": {"max_results": 9999, "parlay_legs_min": 2, "parlay_legs_max": 3, "max_player_exposure": 0.35},
-        "growth": {"max_results": 9999, "parlay_legs_min": 3, "parlay_legs_max": 3, "max_player_exposure": 0.40},
-        "high_upside": {"max_results": 9999, "parlay_legs_min": 3, "parlay_legs_max": 4, "max_player_exposure": 0.50},
-    }
-
-    # `settings` is the same object as `req.settings` when provided — preset assignment mutates it.
-    # Read client leg counts BEFORE applying presets, or us.parlay_legs_* would already be preset values.
     settings = req.settings or UserSettings()
-    us = req.settings
-    saved_leg_min = None
-    saved_leg_max = None
-    if us is not None:
-        if "parlay_legs_min" in us.model_fields_set:
-            saved_leg_min = us.parlay_legs_min
-        if "parlay_legs_max" in us.model_fields_set:
-            saved_leg_max = us.parlay_legs_max
-
-    p = presets.get(profile, presets["growth"])
-    # Order: preset defaults first, then restore client overrides last
-    settings.max_results = 9999
-    settings.max_player_exposure = p.get("max_player_exposure")
-    settings.parlay_legs_min = p["parlay_legs_min"]
-    settings.parlay_legs_max = p["parlay_legs_max"]
-    if saved_leg_min is not None:
-        settings.parlay_legs_min = saved_leg_min
-    if saved_leg_max is not None:
-        settings.parlay_legs_max = saved_leg_max
-
     logger.info(
-        "leg counts: min=%s max=%s profile=%s",
+        "leg counts: min=%s max=%s",
         settings.parlay_legs_min,
         settings.parlay_legs_max,
-        profile,
     )
 
-    # Convert NormalizedLeg objects to portfolio.Leg for the engine
-    portfolio_legs = []
+    # Remove legs with suspiciously high EV (likely bad/stale lines).
+    legs_norm = [l for l in legs_norm if (l.ev_pct or 0) <= MAX_SINGLE_LEG_EV]
+    logger.info("After EV sanity filter: %d legs", len(legs_norm))
+
+    for leg in legs_norm:
+        b = (leg.book or "").strip()
+        if b in BOOK_ALIASES:
+            leg.book = BOOK_ALIASES[b]
+
+    # Group legs by sportsbook so the engine never mixes books on one run (avoids cross-book slips).
+    legs_by_book: Dict[str, List[NormalizedLeg]] = defaultdict(list)
     for nl in legs_norm:
-        try:
-            portfolio_legs.append(
-                PortfolioLeg(
-                    id=nl.id,
-                    participant=nl.participant,
-                    market=nl.market,
-                    side=str(nl.side) if nl.side is not None else "other",
-                    line=nl.line,
-                    odds_american=float(nl.odds_american),
-                    ev_pct=nl.ev_pct,
-                    hit_prob_pct=nl.hit_prob_pct,
-                    book=nl.book,
-                    league=nl.league,
-                    sport=nl.sport,
-                )
-            )
-        except Exception as leg_err:
-            logger.warning("Skipping leg conversion error: %s", leg_err)
-            continue
+        bk = (nl.book or "").strip() or "Unknown"
+        legs_by_book[bk].append(nl)
 
     start = time.perf_counter()
     port_result = None
     try:
         parlays: List[Parlay] = []
-        if portfolio_legs:
-            # Generate until we have at least 15 red slips or hit 200 slips (up to 5 attempts)
-            base_num_slips = max(20, len(portfolio_legs) // 3)
-            for attempt in range(5):
+        all_filtered_slips: List[EngineSlip] = []
+        min_hit = settings.min_hit_prob if settings.min_hit_prob is not None else DEFAULT_MIN_HIT
+        min_pev = settings.min_parlay_ev if settings.min_parlay_ev is not None else DEFAULT_MIN_PEV
+
+        if legs_by_book:
+            engine_mode = "balanced"
+            max_exp = settings.max_player_exposure if settings.max_player_exposure is not None else 0.4
+            rpc = getattr(settings, "risk_per_session_pct", None)
+            if rpc is None:
+                rpc = 0.08
+
+            for book_name, norms_in_bucket in sorted(legs_by_book.items(), key=lambda x: x[0].lower()):
+                book_norm_legs = [
+                    nl
+                    for nl in norms_in_bucket
+                    if ((getattr(nl, "book", None) or "").strip() or "Unknown") == book_name
+                ]
+                if not book_norm_legs:
+                    continue
+
+                book_portfolio_legs: List[PortfolioLeg] = []
+                for nl in book_norm_legs:
+                    try:
+                        book_portfolio_legs.append(
+                            PortfolioLeg(
+                                id=nl.id,
+                                participant=nl.participant,
+                                market=nl.market,
+                                side=str(nl.side) if nl.side is not None else "other",
+                                line=nl.line,
+                                odds_american=float(nl.odds_american),
+                                ev_pct=nl.ev_pct,
+                                hit_prob_pct=nl.hit_prob_pct,
+                                book=nl.book,
+                                league=nl.league,
+                                sport=nl.sport,
+                                event=nl.event,
+                                game_key=nl.game_key,
+                            )
+                        )
+                    except Exception as leg_err:
+                        logger.warning("Skipping leg conversion error: %s", leg_err)
+                        continue
+
+                if not book_portfolio_legs:
+                    continue
+
+                n_book = len(book_portfolio_legs)
+                # Upper bound on distinct 3-leg subsets (independent of UI leg count for this cap).
+                max_unique = math.comb(n_book, 3) if n_book >= 3 else 0
+                if max_unique < 3:
+                    logger.info(
+                        "book=%s skipping: only %d unique combinations possible",
+                        book_name,
+                        max_unique,
+                    )
+                    continue
+                num_slips_effective = min(25, max(3, max_unique))
                 port_settings = PortfolioEngineSettings(
-                    mode="conservative" if profile == "stable" else ("aggressive" if profile == "high_upside" else "balanced"),
-                    num_slips=min(200, base_num_slips + attempt * 30),
+                    mode=engine_mode,
+                    num_slips=num_slips_effective,
+                    min_parlay_ev=0.02,
                     legs_per_slip=settings.parlay_legs_max,
-                    max_player_exposure=p["max_player_exposure"],
+                    max_player_exposure=max_exp,
                     bankroll=getattr(settings, "bankroll", None),
                     risk_per_slate=getattr(settings, "risk_per_slate", 0.1),
-                    risk_per_session_pct=getattr(settings, "risk_per_session_pct", 0.08),
+                    risk_per_session_pct=rpc,
                 )
-                port_result = generate_portfolio(portfolio_legs, port_settings)
-
-                red_count = sum(
-                    1 for slip in port_result.slips if slip_quality(slip.legs, legs_norm) == "bad"
-                )
-                green_count = sum(
-                    1 for slip in port_result.slips if slip_quality(slip.legs, legs_norm) == "good"
-                )
-
                 logger.info(
-                    "attempt=%d slips=%d green=%d red=%d",
-                    attempt,
-                    len(port_result.slips),
-                    green_count,
-                    red_count,
+                    "book=%s unified engine num_slips=%d legs=%d max_unique_3leg=%d legs_per_slip=%d",
+                    book_name,
+                    num_slips_effective,
+                    n_book,
+                    max_unique,
+                    settings.parlay_legs_max,
+                )
+                pr = generate_portfolio(book_portfolio_legs, port_settings)
+                filtered_slips = _filter_slips_by_hit_ev(pr.slips, min_hit, min_pev)
+                if len(filtered_slips) < 5:
+                    logger.info(
+                        "book=%s skipping: only %d slips after filter (min 5 required)",
+                        book_name,
+                        len(filtered_slips),
+                    )
+                    continue
+                all_filtered_slips.extend(filtered_slips)
+                logger.info(
+                    "book=%s post-filter slips=%d (min_hit=%.3f min_parlay_ev=%.3f)",
+                    book_name,
+                    len(filtered_slips),
+                    min_hit,
+                    min_pev,
                 )
 
-                if red_count >= 15 or attempt == 4:
-                    break
-
-            for slip in port_result.slips:
-                slip_legs = []
-                for slip_leg in slip.legs:
-                    matched = next(
-                        (
-                            nl
-                            for nl in legs_norm
-                            if nl.participant == slip_leg.leg.participant
-                            and nl.market == slip_leg.leg.market
-                        ),
-                        None,
-                    )
-                    if matched:
-                        slip_legs.append(matched)
-                if len(slip_legs) >= settings.parlay_legs_min:
-                    parlays.append(
-                        Parlay(
-                            id=str(uuid4())[:8],
-                            legs=slip_legs,
-                            num_legs=len(slip_legs),
-                            est_ev_score=round(slip.score, 3),
-                            risk_score=max(1, min(10, 3 + (len(slip_legs) - 2) * 2)),
-                            time_sensitivity="medium",
-                            notes=["Built from top EV legs.", "Confirm lines before submitting."],
+                for slip in filtered_slips:
+                    slip_legs = []
+                    for slip_leg in slip.legs:
+                        matched = next(
+                            (
+                                nl
+                                for nl in book_norm_legs
+                                if nl.participant == slip_leg.leg.participant
+                                and nl.market == slip_leg.leg.market
+                                and (nl.book or "").strip() == (slip_leg.leg.book or "").strip()
+                            ),
+                            None,
                         )
-                    )
+                        if matched:
+                            slip_legs.append(matched)
+                    if len(slip_legs) >= settings.parlay_legs_min:
+                        parlays.append(
+                            Parlay(
+                                id=str(uuid4())[:8],
+                                legs=slip_legs,
+                                num_legs=len(slip_legs),
+                                est_ev_score=round(slip.score, 3),
+                                risk_score=max(1, min(10, 3 + (len(slip_legs) - 2) * 2)),
+                                time_sensitivity="medium",
+                                notes=["Built from top EV legs.", "Confirm lines before submitting."],
+                            )
+                        )
+
+            if not all_filtered_slips:
+                logger.info(
+                    "post-filter: zero slips (min_hit=%.3f min_parlay_ev=%.3f); returning no_results",
+                    min_hit,
+                    min_pev,
+                )
+                return SuggestResponse(
+                    api_version=API_VERSION,
+                    parlays=[],
+                    summary={
+                        "num_parlays": 0,
+                        "no_results": True,
+                        "message": "No slips matched your filters. Try lowering the Min Hit Prob or Min Parlay EV sliders.",
+                    },
+                    book_sections=[],
+                    errors=None,
+                )
+
+            merged_slip_count = len(all_filtered_slips)
+            port_result = build_portfolio_result(
+                all_filtered_slips,
+                PortfolioEngineSettings(
+                    mode=engine_mode,
+                    num_slips=max(3, merged_slip_count),
+                    min_parlay_ev=0.02,
+                    legs_per_slip=settings.parlay_legs_max,
+                    max_player_exposure=max_exp,
+                    bankroll=getattr(settings, "bankroll", None),
+                    risk_per_slate=getattr(settings, "risk_per_slate", 0.1),
+                    risk_per_session_pct=rpc,
+                ),
+            )
+            logger.info(
+                "post-filter total slips=%d across %d books (min_hit=%.3f min_parlay_ev=%.3f)",
+                len(all_filtered_slips),
+                len(legs_by_book),
+                min_hit,
+                min_pev,
+            )
         duration_ms = (time.perf_counter() - start) * 1000
         if parlays:
             logger.info("generation succeeded count=%d latency_ms=%.1f", len(parlays), duration_ms)
@@ -646,9 +747,20 @@ def suggest(req: SuggestRequest):
     # suggest unit size & slate risk if bankroll provided (Section 2E: prefer risk_per_session_pct)
     bank = getattr(req.settings, "bankroll", None)
     riskpct = getattr(req.settings, "risk_per_session_pct", None) or getattr(req.settings, "risk_per_slate", 0.1)
+    book_bs = getattr(req.settings, "book_bankrolls", None) or {}
+    if isinstance(book_bs, dict):
+        total_bankroll = sum(float(v) for v in book_bs.values() if v is not None and float(v) > 0)
+    else:
+        total_bankroll = 0.0
+    if total_bankroll <= 0 and bank and bank > 0:
+        total_bankroll = float(bank)
+
     if bank and bank > 0 and parlays:
         slate_risk_val = bank * riskpct
         unit = slate_risk_val / len(parlays)
+        if total_bankroll > 0 and unit > total_bankroll * 0.20:
+            unit = round(total_bankroll * 0.20, 2)
+            logger.warning("unit_size capped at 20%% of risk budget: $%.2f", unit)
         summary["unit_size"] = unit
         summary["slate_risk"] = slate_risk_val
     else:
@@ -678,5 +790,25 @@ def suggest(req: SuggestRequest):
         if not summary.get("warnings"):
             summary["warnings"] = pm.get("warnings") or []
 
-    return SuggestResponse(api_version=API_VERSION, parlays=parlays, summary=summary)
+    book_sections: Optional[List[Dict[str, Any]]] = None
+    if parlays:
+        by_book: Dict[str, List[Parlay]] = {}
+        for p in parlays:
+            bk = "Unknown Book"
+            if p.legs:
+                leg_book = (getattr(p.legs[0], "book", None) or "").strip()
+                if leg_book:
+                    bk = leg_book
+            by_book.setdefault(bk, []).append(p)
+        book_sections = [
+            {"book": bk, "num_slips": len(slips), "slips": [sl.model_dump(mode="json") for sl in slips]}
+            for bk, slips in sorted(by_book.items(), key=lambda x: x[0].lower())
+        ]
+
+    return SuggestResponse(
+        api_version=API_VERSION,
+        parlays=parlays,
+        summary=summary,
+        book_sections=book_sections,
+    )
 

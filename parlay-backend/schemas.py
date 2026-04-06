@@ -38,6 +38,8 @@ class RawLeg(BaseModel):
     fair_odds: Optional[float] = Field(default=None, examples=[-125])
     url: Optional[str] = Field(default=None, description="Optional deep link to the offer")
     captured_at: Optional[datetime] = Field(default=None)
+    event: Optional[str] = Field(default=None, description="Raw event / matchup text from capture")
+    game_key: Optional[str] = Field(default=None, description="Canonical same-game id from extension")
 
 
 class NormalizedLeg(BaseModel):
@@ -59,6 +61,8 @@ class NormalizedLeg(BaseModel):
     fair_odds_american: Optional[int]
     url: Optional[str]
     captured_at: datetime
+    event: Optional[str] = None
+    game_key: Optional[str] = None
 
     @field_validator("captured_at", mode="before")
     @classmethod
@@ -84,9 +88,14 @@ class UserSettings(BaseModel):
 
     # bankroll/risk settings for sizing recommendations
     bankroll: Optional[float] = Field(default=None, ge=0)
+    # Per-sportsbook risk budgets (extension); sum used for per-slip unit cap vs total budget
+    book_bankrolls: Optional[Dict[str, float]] = Field(default=None)
     risk_per_slate: float = Field(default=0.1, ge=0.0, le=1.0)
     # Section 2E: risk per session as % of capital (e.g. 0.08 = 8%). Preferred over risk_per_slate.
     risk_per_session_pct: Optional[float] = Field(default=0.08, ge=0.01, le=0.50)
+    # Post-generation filters (fractions, e.g. 0.05 = 5% min combined hit prob)
+    min_hit_prob: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    min_parlay_ev: Optional[float] = Field(default=None, ge=-1.0, le=5.0)
 
     @field_validator("parlay_legs_max")
     @classmethod
@@ -127,6 +136,8 @@ class SuggestResponse(BaseModel):
     parlays: List[Parlay]
     summary: Optional[Dict[str, Any]] = None
     errors: Optional[List[str]] = None
+    # Optional grouping for extension UI: [{ "book", "num_slips", "slips": [...] }, ...]
+    book_sections: Optional[List[Dict[str, Any]]] = Field(default=None)
 
     class Config:
         extra = "allow"  # allow older consumers to read unit_size etc at top level

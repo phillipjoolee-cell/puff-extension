@@ -1,0 +1,53 @@
+[
+  {
+    "id": "06c9f2c8",
+    "source": "t",
+    "book": "22bet",
+    "sport": null,
+    "league": null,
+    "market": "Pts",
+    "participant": "A",
+    "side": "over",
+    "line": 20.5,
+    "odds_american": -110,
+    "ev_pct": 5.0,
+    "hit_prob_pct": 55.0,
+    "fair_odds_american": null,
+    "url": null,
+    "captured_at": "2026-04-02T04:11:21.347650Z"
+  },
+  {
+    "id": "1c8c2304",
+    "source": "t",
+    "book": "Betano",
+    "sport": null,
+    "league": null,
+    "market": "Pts",
+    "participant": "B",
+    "side": "over",
+    "line": 20.5,
+    "odds_american": -110,
+    "ev_pct": 5.0,
+    "hit_prob_pct": 55.0,
+    "fair_odds_american": null,
+    "url": null,
+    "captured_at": "2026-04-02T04:11:21.347801Z"
+  },
+  {
+    "id": "9dee0c10",
+    "source": "t",
+    "book": "Novig",
+    "sport": null,
+    "league": null,
+    "market": "Pts",
+    "participant": "C",
+    "side": "over",
+    "line": 20.5,
+    "odds_american": -110,
+    "ev_pct": 5.0,
+    "hit_prob_pct": 55.0,
+    "fair_odds_american": null,
+    "url": null,
+    "captured_at": "2026-04-02T04:11:21.347819Z"
+  }
+]

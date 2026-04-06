@@ -19,7 +19,7 @@
           <div class="field">
             <label for="optCapital">Capital amount</label>
             <input id="optCapital" type="number" min="0" step="1" placeholder="e.g. 500" />
-            <span class="help">Your current bankroll. Used for unit sizing and allocation.</span>
+            <span class="help">Your current risk budget. Used for unit sizing and allocation.</span>
           </div>
           <div class="field">
             <label for="optRiskPct">Risk per session %</label>
@@ -29,14 +29,14 @@
         </section>
 
         <div class="settingsSection" id="bankrollSection">
-          <div class="settingsSectionTitle">Sportsbook Bankrolls</div>
+          <div class="settingsSectionTitle">Sportsbook Risk Budgets</div>
           <p id="bankrollExpiryNotice" class="bankrollExpiryNotice hidden" role="status"></p>
-          <p class="settingsHint">Select the books you have accounts at and enter your current balance.</p>
+          <p class="settingsHint">Select the books you have accounts at and enter your risk budget for each.</p>
           <div id="bankrollBookList" class="bankrollBookList">
             <!-- dynamically populated from captured legs -->
           </div>
           <div class="bankrollTotal">
-            Total bankroll: <span id="bankrollTotalAmount">$0</span>
+            Total risk budget: <span id="bankrollTotalAmount">$0</span>
           </div>
         </div>
 

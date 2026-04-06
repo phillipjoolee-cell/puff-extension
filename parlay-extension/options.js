@@ -59,15 +59,25 @@ function renderBankrollBookList() {
         <input type="checkbox" class="bankrollBookCheck" data-book="${a}" ${checked}>
         <span class="bankrollBookName">${h}</span>
       </label>
-      <div class="bankrollInputWrapper ${hidden}">
-        <span class="bankrollDollar">$</span>
-        <input type="number" class="bankrollInput" data-book="${a}"
-          min="0" step="1" placeholder="0"
-          value="${val}">
+      <div class="bankrollBookRight">
+        <div class="bankrollInputWrapper ${hidden}">
+          <span class="bankrollDollar">$</span>
+          <input type="number" class="bankrollInput" data-book="${a}"
+            min="0" step="1" placeholder="0"
+            value="${val}">
+        </div>
       </div>
     </div>`;
     })
     .join("");
+
+  const firstRight = container.querySelector(".bankrollBookRight");
+  if (firstRight) {
+    const hint = document.createElement("div");
+    hint.style.cssText = "font-size:10px;color:rgba(255,255,255,0.35);margin-top:3px;";
+    hint.textContent = "How much you want to risk across your slips this session";
+    firstRight.appendChild(hint);
+  }
 
   container.querySelectorAll(".bankrollBookCheck").forEach((cb) => {
     cb.addEventListener("change", () => {
@@ -135,7 +145,7 @@ function loadBankrolls() {
       chrome.storage.local.remove(["puff_bookBankrolls", "puff_bankrollExpiry"], () => {
         if (notice) {
           notice.textContent =
-            "Your saved balances expired at midnight. Re-enter your sportsbook amounts below.";
+            "Your saved risk budgets expired at midnight. Re-enter your sportsbook risk budgets below.";
           notice.classList.remove("hidden");
         }
       });

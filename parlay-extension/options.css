@@ -125,6 +125,11 @@ body {
   font-size: 13px;
   color: var(--textPrimary);
 }
+.bankrollBookRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
 .bankrollInputWrapper {
   display: flex;
   align-items: center;

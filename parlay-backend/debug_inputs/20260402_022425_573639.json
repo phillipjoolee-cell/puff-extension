@@ -1,0 +1,36 @@
+[
+  {
+    "id": "eff78231",
+    "source": "extension",
+    "book": "22bet",
+    "sport": "Hockey",
+    "league": "NHL",
+    "market": "Puck Line",
+    "participant": "Dallas Stars -1",
+    "side": "other",
+    "line": -1.0,
+    "odds_american": 119,
+    "ev_pct": 12.9,
+    "hit_prob_pct": 51.5,
+    "fair_odds_american": null,
+    "url": null,
+    "captured_at": "2026-04-02T02:24:21.899000Z"
+  },
+  {
+    "id": "7d00f74b",
+    "source": "extension",
+    "book": "22bet",
+    "sport": "Hockey",
+    "league": "NHL",
+    "market": "Puck Line",
+    "participant": "Carolina Hurricanes -1",
+    "side": "other",
+    "line": -1.0,
+    "odds_american": 110,
+    "ev_pct": 9.61,
+    "hit_prob_pct": 52.2,
+    "fair_odds_american": null,
+    "url": null,
+    "captured_at": "2026-04-02T02:24:21.899000Z"
+  }
+]

@@ -285,6 +285,101 @@ section.card + section,
   box-shadow: 0 0 12px var(--glow1);
 }
 
+.sliderSection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 0;
+}
+
+.sliderRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sliderLabel {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  width: 90px;
+  flex-shrink: 0;
+}
+
+.puffSlider {
+  flex: 1;
+  -webkit-appearance: none;
+  height: 3px;
+  background: linear-gradient(to right, #7c63ff, #4fd1c5);
+  border-radius: 2px;
+  outline: none;
+}
+
+.puffSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 4px rgba(124, 99, 255, 0.6);
+}
+
+.sliderValue {
+  font-size: 12px;
+  color: #7c63ff;
+  min-width: 40px;
+  width: 40px;
+  text-align: right;
+  font-weight: 600;
+}
+
+.sliderReset {
+  font-size: 11px;
+  color: rgba(124, 99, 255, 0.7);
+  text-align: right;
+  cursor: pointer;
+  margin-top: 4px;
+  text-decoration: underline;
+}
+
+.sliderReset:hover {
+  color: #7c63ff;
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+  gap: 8px;
+}
+
+.emptyStateIcon {
+  font-size: 32px;
+  margin-bottom: 4px;
+}
+
+.emptyStateTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.emptyStateMsg {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.45);
+  max-width: 240px;
+  line-height: 1.5;
+}
+
+.emptyStateHint {
+  font-size: 11px;
+  color: rgba(124, 99, 255, 0.6);
+  margin-top: 4px;
+}
+
 /* Select dropdown */
 .select {
   padding: 8px 10px;
@@ -614,6 +709,14 @@ section.card + section,
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  border-radius: 6px;
+  padding: 2px 4px;
+  margin: 0 -4px;
+  transition: background 0.15s;
+}
+
+.bankrollBookRow.selected {
+  background: rgba(124, 99, 255, 0.12);
 }
 
 .bankrollBookLabel {
@@ -627,6 +730,12 @@ section.card + section,
 .bankrollBookName {
   font-size: 13px;
   color: var(--textPrimary);
+}
+
+.bankrollBookRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
 
 .bankrollInputWrapper {
@@ -661,6 +770,21 @@ section.card + section,
   text-align: right;
   border-top: 1px solid var(--stroke);
   padding-top: 8px;
+}
+
+.bankrollWarning {
+  display: none;
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #e6a23c;
+}
+
+.bankrollSaveBtn {
+  margin-top: 8px;
+  width: 100%;
+  font-size: 12px;
+  padding: 6px 10px;
 }
 
 .slipsFilterRow {
@@ -754,6 +878,37 @@ section.card + section,
   color: var(--textMuted);
 }
 
+.bookSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 4px 6px;
+  margin-top: 12px;
+  border-bottom: 1px solid rgba(124, 99, 255, 0.3);
+}
+
+.slipsList .bookSectionHeader:first-child {
+  margin-top: 0;
+}
+
+.bookSectionName {
+  font-size: 13px;
+  font-weight: 600;
+  color: #7c63ff;
+  letter-spacing: 0.3px;
+}
+
+.bookSectionCount {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.bookSectionDivider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 16px 0;
+}
+
 .slipsList {
   display: flex;
   flex-direction: column;
@@ -804,9 +959,58 @@ section.card + section,
 
 .slipCardQuality {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 10px;
   line-height: 1;
 }
+
+/* Single badge per slip (was EV pill + risk diamond — read as duplicate “checkbox” controls) */
+.slipQualityBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: default;
+  box-sizing: border-box;
+}
+
+.slipQualityBadge.slipQ-ev-strong {
+  background: linear-gradient(90deg, #7c63ff, #4fd1c5);
+  color: #fff;
+}
+
+.slipQualityBadge.slipQ-ev-moderate {
+  background: linear-gradient(90deg, rgba(124, 99, 255, 0.3), rgba(120, 160, 255, 0.3));
+  color: rgba(160, 150, 255, 0.95);
+  border: 1px solid rgba(124, 99, 255, 0.35);
+}
+
+.slipQualityBadge.slipQ-ev-low {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.slipQualityBadge.slipQ-risk-safe {
+  box-shadow: inset 0 0 0 2px #4fd1c5;
+}
+
+.slipQualityBadge.slipQ-risk-risky {
+  box-shadow: inset 0 0 0 2px rgba(255, 159, 64, 0.9);
+}
+
+.slipQualityBadge.slipQ-risk-longshot {
+  box-shadow: inset 0 0 0 2px #7c63ff;
+}
+
 .slipCard.slipQuality-good { border-left-color: rgba(120, 180, 120, 0.9); }
 .slipCard.slipQuality-ok { border-left-color: rgba(200, 150, 80, 0.9); }
 .slipCard.slipQuality-bad { border-left-color: rgba(200, 100, 100, 0.9); }
@@ -877,9 +1081,75 @@ section.card + section,
 }
 
 .slipCardCapital {
-  font-size: 10px;
-  color: var(--textMuted);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
   line-height: 1.35;
+}
+
+.slipCardCapitalLabel {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--textMuted);
+}
+
+.slipCardCapitalValue {
+  font-size: 10px;
+  color: var(--textSecondary);
+}
+
+/* Slip editor: one checkbox per leg (remove); ghost slots unchanged */
+.slipEditorLegs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.slipEditorLegPill {
+  padding: 8px 10px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+}
+
+.slipEditorGhostPill {
+  border-style: dashed;
+  opacity: 0.75;
+}
+
+.slipEditorLegPick {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--textSecondary);
+  line-height: 1.35;
+}
+
+.slipEditorLegRemoveCb {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  accent-color: var(--accentB);
+  cursor: pointer;
+}
+
+.slipEditorLegLabel {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.slipEditorGhostLabel {
+  font-size: 11px;
+  color: var(--textMuted);
 }
 
 .linkBtn {

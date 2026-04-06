@@ -1,11 +1,14 @@
 """Portfolio generation module for parlay slip optimization."""
 
+import logging
 import math
 import random
 import re
 from typing import Optional
 from pydantic import BaseModel, Field, model_validator
 
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -147,6 +150,9 @@ class Leg(BaseModel):
     book: Optional[str] = None
     league: Optional[str] = None
     sport: Optional[str] = None
+    # Optional same-game identity (preferred over parsing participant).
+    game_key: Optional[str] = None
+    event: Optional[str] = None
 
     @model_validator(mode="after")
     def _normalize_odds(self):
@@ -209,7 +215,7 @@ class PortfolioResult(BaseModel):
 class PortfolioSettings(BaseModel):
     """Settings for portfolio generation."""
     mode: str = Field(default="balanced", pattern="conservative|balanced|aggressive")
-    num_slips: int = Field(default=20, ge=5, le=200)
+    num_slips: int = Field(default=20, ge=3, le=200)
     legs_per_slip: int = Field(default=3, ge=2, le=15, description="Section 6: Allow 2–15 legs; metrics discourage unrealistic parlays")
     max_player_exposure: float = Field(default=0.3, ge=0.05, le=1.0)
     max_game_exposure: Optional[float] = Field(default=None, ge=0.2, le=1.0)
@@ -218,6 +224,8 @@ class PortfolioSettings(BaseModel):
     # Section 2E: risk per session as % of capital (e.g. 0.08 = 8%). Preferred over fixed sizing.
     risk_per_session_pct: float = Field(default=0.08, ge=0.01, le=0.50)
     sizing_mode: str = Field(default="equal", pattern="equal|weighted")
+    # If set, overrides mode-based default for the minimum parlay EV gate in _build_portfolio
+    min_parlay_ev: Optional[float] = Field(default=None, ge=0.0, le=1.0)
 
 
 # ============================================================================
@@ -225,57 +233,15 @@ class PortfolioSettings(BaseModel):
 # ============================================================================
 
 
-def _compute_leg_score(slip_leg: SlipLeg, mode: str, legs_per_slip: int = 3) -> float:
+def _compute_leg_score(slip_leg: SlipLeg, _legs_per_slip: int = 3) -> float:
     p = slip_leg.p_model
     edge = slip_leg.edge
     p_safe = max(p, 0.01)
-
-    if mode == "conservative" and legs_per_slip >= 4:
-        # For conservative mode with higher leg counts, we need more legs available
-        # Reduce the probability penalty slightly so 4th legs can be found
-        return (p_safe**1.5) * 8.0 + edge * 0.5
-
-    if mode == "conservative":
-        # Stable: reward high hit probability HEAVILY (p²) — no hard exclusions
-        return (p_safe**2) * 10.0 + edge * 0.5
-
-    elif mode == "aggressive":
-        # Upside: reward EV and payout potential
-        payout = slip_leg.decimal_odds
-        return edge * 3.0 + math.log(max(payout, 1.01)) * 1.0
-
-    else:  # balanced/growth
-        # Growth: equal weight on both
-        return edge * 2.0 + p_safe * 3.0
+    return edge * 2.0 + p_safe * 3.0
 
 
-def _compute_slip_score(slip_legs: list[SlipLeg], mode: str, legs_per_slip: int = 3) -> float:
-    """Compute overall score for a slip.
-    
-    Args:
-        slip_legs: Legs in the slip
-        mode: Portfolio mode
-    
-    Returns:
-        Slip score
-    """
-    if not slip_legs:
-        return -float('inf')
-    
-    # Sum individual leg scores
-    leg_score = sum(_compute_leg_score(leg, mode, legs_per_slip) for leg in slip_legs)
-    
-    # Add bonus for joint probability (but mild to avoid explosive payouts)
-    prob_product = 1.0
-    for leg in slip_legs:
-        prob_product *= leg.p_model
-    
-    if mode == "conservative":
-        prob_bonus = math.log(max(prob_product, 0.01)) * 0.5
-    else:
-        prob_bonus = math.log(max(prob_product, 0.01)) * 0.3
-    
-    return leg_score + prob_bonus
+def _compute_slip_score(slip_legs: list[SlipLeg], mode: str = "balanced", legs_per_slip: int = 3) -> float:
+    return _score_slip_holistically(slip_legs)
 
 
 def score_diversification_penalty(
@@ -450,6 +416,61 @@ def _compute_correlation_warnings(slips: list[Slip]) -> list[str]:
     return warnings
 
 
+def _score_slip_holistically(slip_legs: list[SlipLeg]) -> float:
+    """Risk-adjusted EV: rewards parlay EV but dampens low hit rate via sqrt(hit_prob).
+
+    High EV with a very low combined hit scores below naive EV*diversification,
+    so the engine favors slips a bettor can more realistically realize.
+    """
+    if not slip_legs:
+        return -float("inf")
+
+    combined_hit = 1.0
+    parlay_payout = 1.0
+    for sl in slip_legs:
+        combined_hit *= sl.p_model
+        parlay_payout *= sl.decimal_odds
+
+    parlay_ev = combined_hit * parlay_payout - 1
+
+    if combined_hit <= 0 or parlay_ev <= 0:
+        return 0.0
+
+    hit_factor = math.sqrt(combined_hit)
+
+    sports = len({sl.leg.sport for sl in slip_legs if sl.leg.sport})
+    markets = len({sl.leg.market for sl in slip_legs if sl.leg.market})
+    div_bonus = 1.0 + (sports * 0.05) + (markets * 0.03)
+
+    return parlay_ev * hit_factor * div_bonus
+
+
+def _leg_game_key(leg: Leg) -> Optional[str]:
+    gk = getattr(leg, "game_key", None)
+    if gk:
+        return gk
+    ev = (getattr(leg, "event", None) or "").strip()
+    if ev:
+        return ev
+    return extract_game_key(leg.participant or "")
+
+
+def _same_game(leg_a: Leg, leg_b: Leg) -> bool:
+    key_a = getattr(leg_a, "game_key", None)
+    key_b = getattr(leg_b, "game_key", None)
+    if key_a and key_b:
+        return key_a == key_b
+    if key_a or key_b:
+        return False
+    event_a = (getattr(leg_a, "event", None) or "").strip().lower()
+    event_b = (getattr(leg_b, "event", None) or "").strip().lower()
+    if not event_a or not event_b:
+        return False
+    words_a = " ".join(event_a.split()[:3])
+    words_b = " ".join(event_b.split()[:3])
+    return words_a == words_b
+
+
 def _build_slip(
     available_legs: list[SlipLeg],
     target_num_slips: int,
@@ -462,143 +483,144 @@ def _build_slip(
     num_slips_so_far: int,
     leg_usage_count: Optional[dict[tuple, int]] = None,
 ) -> Optional[list[SlipLeg]]:
-    """Greedily build a single slip given available legs.
-    
-    Args:
-        available_legs: Pool of legs to choose from
-        legs_per_slip: Target number of legs per slip
-        mode: Portfolio mode (conservative / balanced / aggressive)
-        max_player_exposure: Max allowed exposure for any player
-        max_game_exposure: Max allowed exposure for any game (or None to disable)
-        player_counts: Current counts of slips with each player
-        game_counts: Current counts of slips with each game
-        num_slips_so_far: Number of slips built so far
-    
-    Returns:
-        List of selected legs, or None if not enough valid legs
+    """Build a single slip using holistic greedy search.
+
+    At each step, picks the next leg that maximizes the slip's
+    holistic score rather than the leg's individual score.
+    This ensures we optimize for actual parlay quality, not
+    just the sum of individual leg qualities.
     """
-    slip = []
-    legs_in_slip = set()
-    players_in_slip = set()
-    games_in_slip = set()
-    
-    # conflict detection helpers
+    slip: list[SlipLeg] = []
+    legs_in_slip: set[tuple] = set()
+    players_in_slip: set[str] = set()
+    games_in_slip: set[str] = set()
+    leg_usage_count = leg_usage_count or {}
+
     def market_family(mkt: str) -> str:
         fam = mkt.lower()
-        if "points" in fam or "pts" in fam or "reb" in fam or "ast" in fam:
+        if any(x in fam for x in ("points", "pts", "reb", "ast", "hits", "runs", "goals", "assists")):
             return "player_stats"
-        if "total" in fam or "over" in fam or "under" in fam:
+        if any(x in fam for x in ("total", "over", "under")):
             return "game_total"
-        if "moneyline" in fam or "spread" in fam or "line" in fam:
+        if any(x in fam for x in ("moneyline", "spread", "line", "puck")):
             return "game_side"
         return "other"
 
     def conflicts(existing: Leg, candidate: Leg) -> bool:
         if existing.participant != candidate.participant:
             return False
-        fam1 = market_family(existing.market)
-        fam2 = market_family(candidate.market)
+        fam1 = market_family(existing.market or "")
+        fam2 = market_family(candidate.market or "")
         if fam1 != fam2:
             return False
-        # opposite sides on same family
         if fam1 == "game_total":
-            sval = existing.side.lower()
-            cval = candidate.side.lower()
-            if ("over" in sval and "under" in cval) or ("under" in sval and "over" in cval):
+            s1 = (existing.side or "").lower()
+            s2 = (candidate.side or "").lower()
+            if ("over" in s1 and "under" in s2) or ("under" in s1 and "over" in s2):
                 return True
-        # any additional leg in same family is also conflict
         return True
-    
-    # Sort available legs by score, applying a soft penalty for frequently-used legs
-    leg_usage_count = leg_usage_count or {}
 
-    # Penalty strength depends on portfolio mode: conservative -> strongest, aggressive -> weakest
-    penalty_map = {
-        "conservative": 0.35,
-        "balanced": 0.15,
-        "aggressive": 0.05,
-    }
-    penalty_strength = penalty_map.get(mode, 0.15)
-
-    def _score_with_penalty(slip_leg: SlipLeg):
-        base = _compute_leg_score(slip_leg, mode, legs_per_slip)
-        leg = slip_leg.leg
-        lk = (leg.participant, leg.market, leg.side, leg.line)
-        leg_use = leg_usage_count.get(lk, 0)
-        # Section 2F: Soft penalty for already-used props (exact leg) and players.
-        # Strong EV can still win—this encourages diversification, not hard exclusion.
-        player_use = player_counts.get(leg.participant, 0)
-        player_penalty = 0.4 * penalty_strength  # milder than leg reuse
-        return base - (leg_use * penalty_strength) - (player_use * player_penalty)
-
-    # Sort using score with penalty
-    sorted_legs = sorted(available_legs, key=lambda x: _score_with_penalty(x), reverse=True)
-    
-    for slip_leg in sorted_legs:
-        if len(slip) >= legs_per_slip:
-            break
-        
-        leg = slip_leg.leg
-        
-        # Check for exact duplicate in this slip
+    def is_valid_candidate(sl: SlipLeg) -> bool:
+        leg = sl.leg
         leg_key = (leg.participant, leg.market, leg.side, leg.line)
-        if leg_key in legs_in_slip:
-            continue
 
-        # conflict guard: skip if conflicts with existing chosen leg
-        conflict_flag = False
+        if leg_key in legs_in_slip:
+            return False
+
         for chosen in slip:
             if conflicts(chosen.leg, leg):
-                conflict_flag = True
-                break
-        if conflict_flag:
-            continue
-        
-        # Check player exposure (same human/player once per slip; line embedded in participant OK)
-        player_base = base_player_name(leg.participant or "")
-        player_slip_key = player_base if player_base else (leg.participant or "")
-        if player_slip_key in players_in_slip:
-            continue  # No duplicate players in one slip
+                return False
 
-        if mode == "aggressive":
-            is_top_ev = slip_leg.edge > 0.20  # 20%+ EV
-            if is_top_ev:
-                effective_exposure = min(0.5, max_player_exposure)
-            else:
-                effective_exposure = min(1.0, max_player_exposure * 2.5)
-        else:
-            effective_exposure = max_player_exposure
+        for chosen in slip:
+            if _same_game(leg, chosen.leg):
+                return False
 
-        max_allowed_slips = max(1, math.floor(effective_exposure * target_num_slips))
-        if player_counts.get(leg.participant, 0) >= max_allowed_slips:
-            continue
+        player_base_name = base_player_name(leg.participant or "")
+        player_key = player_base_name if player_base_name else (leg.participant or "")
+        if player_key in players_in_slip:
+            return False
 
-        # extract game identifier (used both for per-slip and portfolio caps)
-        game_key = extract_game_key(leg.participant)
-        # always avoid two legs from the same game in one slip (light guard)
-        if game_key and game_key in games_in_slip:
-            continue
+        effective_exposure = max_player_exposure
+        max_allowed = max(1, math.floor(effective_exposure * target_num_slips))
+        if player_counts.get(leg.participant, 0) >= max_allowed:
+            return False
+
+        game_key = _leg_game_key(leg)
         if max_game_exposure is not None and game_key:
             max_game_slips = max(1, math.ceil(max_game_exposure * (num_slips_so_far + 1)))
             if game_counts.get(game_key, 0) >= max_game_slips:
-                continue
-        
-        # This leg is valid; add it
-        slip.append(slip_leg)
-        legs_in_slip.add(leg_key)
-        players_in_slip.add(player_slip_key)
-        if game_key:
-            games_in_slip.add(game_key)
+                return False
 
-    # Return slip if it meets the target, or if it's at least 2 legs and we couldn't find more
+        return True
+
+    def candidate_score_fast(sl: SlipLeg, current_hit: float, current_payout: float) -> float:
+        """Marginal score for slip + sl; matches _score_slip_holistically up to O(1) work."""
+        new_hit = current_hit * sl.p_model
+        new_payout = current_payout * sl.decimal_odds
+        parlay_ev = new_hit * new_payout - 1
+
+        if new_hit <= 0 or parlay_ev <= 0:
+            base = 0.0
+        else:
+            ns = {s for s in sports_so_far if s}
+            if sl.leg.sport:
+                ns.add(sl.leg.sport)
+            nm = {m for m in markets_so_far if m}
+            if sl.leg.market:
+                nm.add(sl.leg.market)
+            div_bonus = 1.0 + (len(ns) * 0.05) + (len(nm) * 0.03)
+            base = parlay_ev * math.sqrt(new_hit) * div_bonus
+
+        leg = sl.leg
+        leg_key = (leg.participant, leg.market, leg.side, leg.line)
+        leg_use = leg_usage_count.get(leg_key, 0)
+        player_use = player_counts.get(leg.participant, 0)
+        penalty_strength = 0.15
+        penalty = (leg_use * penalty_strength) + (player_use * 0.4 * penalty_strength)
+        return base - penalty
+
+    # Greedy holistic assembly — at each step pick the leg that
+    # maximizes the slip's holistic score
+    for _ in range(legs_per_slip):
+        valid_candidates = [sl for sl in available_legs if is_valid_candidate(sl)]
+        if not valid_candidates:
+            break
+
+        current_hit = 1.0
+        current_payout = 1.0
+        sports_so_far: set[str] = set()
+        markets_so_far: set[str] = set()
+        for existing in slip:
+            current_hit *= existing.p_model
+            current_payout *= existing.decimal_odds
+            lg = existing.leg
+            if lg.sport:
+                sports_so_far.add(lg.sport)
+            if lg.market:
+                markets_so_far.add(lg.market)
+
+        best = max(
+            valid_candidates,
+            key=lambda sl: candidate_score_fast(sl, current_hit, current_payout),
+        )
+        leg = best.leg
+        leg_key = (leg.participant, leg.market, leg.side, leg.line)
+
+        slip.append(best)
+        legs_in_slip.add(leg_key)
+
+        player_base = base_player_name(leg.participant or "")
+        players_in_slip.add(player_base if player_base else (leg.participant or ""))
+
+        gk = _leg_game_key(leg)
+        if gk:
+            games_in_slip.add(gk)
+
+    # Enforce minimum viable slip length
     if len(slip) >= legs_per_slip:
         return slip
-    if len(slip) >= 2:
-        # Could not find enough legs — return what we have only if within 1 of target
-        # This prevents 4-leg mode from silently returning 2-leg slips
-        if legs_per_slip - len(slip) <= 1:
-            return slip
-        return None  # Too far from target, discard this slip attempt
+    if len(slip) >= 2 and legs_per_slip - len(slip) <= 1:
+        return slip
     return None
 
 
@@ -621,16 +643,6 @@ def _build_portfolio(
     
     if not legs:
         return []
-
-    # For aggressive mode: sort by EV but limit top legs
-    # to prevent 2-3 high-EV legs dominating all slips
-    if settings.mode == "aggressive":
-        legs = sorted(legs, key=lambda l: l.ev_pct or 0, reverse=True)
-        top_leg_cap = max(2, int(settings.num_slips * 0.4))
-        top_legs = {l.participant + l.market for l in legs[:5]}
-        aggressive_exposure = settings.max_player_exposure
-    else:
-        aggressive_exposure = settings.max_player_exposure
 
     # Convert legs to SlipLeg with probabilities
     slip_legs = []
@@ -678,7 +690,7 @@ def _build_portfolio(
         if attempt > 0:
             available_legs = sorted(
                 available_legs,
-                key=lambda x: _compute_leg_score(x, settings.mode, settings.legs_per_slip),
+                key=lambda x: _compute_leg_score(x, settings.legs_per_slip),
                 reverse=True
             )
             if len(available_legs) > settings.legs_per_slip + 2:
@@ -733,8 +745,29 @@ def _build_portfolio(
                 break
 
             if slip is None:
-                break
-            
+                continue
+
+            # Minimum parlay EV gate — discard slips with near-zero or negative parlay EV
+            combined_hit = 1.0
+            parlay_payout = 1.0
+            for sl in slip:
+                combined_hit *= sl.p_model
+                parlay_payout *= sl.decimal_odds
+            slip_parlay_ev = combined_hit * parlay_payout - 1
+
+            if settings.min_parlay_ev is not None:
+                min_ev = settings.min_parlay_ev
+            else:
+                min_ev = 0.02
+            logger.info(
+                "slip parlay_ev=%.3f min_ev=%.3f accepted=%s",
+                slip_parlay_ev,
+                min_ev,
+                slip_parlay_ev >= min_ev,
+            )
+            if slip_parlay_ev < min_ev:
+                continue
+
             # Compute slip key from legs
             slip_key = frozenset(
                 (leg.leg.participant, leg.leg.market, leg.leg.side, leg.leg.line)
@@ -772,35 +805,8 @@ def _build_portfolio(
             
             est_american = decimal_to_american(est_decimal)
 
-            # Score slip based on risk profile — balancing EV, hit prob, and payout
-            parlay_payout = 1.0
-            parlay_hit_prob = 1.0
-            for sl in slip:
-                odds = sl.leg.odds_american or 0
-                if odds > 0:
-                    decimal = 1 + (odds / 100)
-                elif odds < 0:
-                    decimal = 1 + (100 / abs(odds))
-                else:
-                    decimal = 1.0
-                parlay_payout *= decimal
-                parlay_hit_prob *= sl.p_model
-
-            true_parlay_ev = (parlay_hit_prob * parlay_payout) - 1
-
-            if settings.mode == "conservative":
-                # Stable: heavily weight hit probability, mild EV bonus
-                slip_score = (parlay_hit_prob * 3.0) + (true_parlay_ev * 0.5)
-
-            elif settings.mode == "aggressive":
-                # High Upside: heavily weight EV and payout potential
-                slip_score = (true_parlay_ev * 2.0) + (math.log(max(parlay_payout, 1.01)) * 0.5)
-
-            else:
-                # Balanced/Growth: equal weight on EV and hit probability
-                slip_score = (true_parlay_ev * 1.2) + (parlay_hit_prob * 1.5)
-
-            adjusted_score = slip_score - penalty
+            slip_holistic = _score_slip_holistically(slip)
+            adjusted_score = slip_holistic - penalty
 
             portfolio.append(
                 Slip(
@@ -832,25 +838,11 @@ def _build_portfolio(
     return best_portfolio
 
 
-def generate_portfolio(
-    legs: list[Leg],
-    settings: PortfolioSettings,
-) -> PortfolioResult:
-    """Generate an optimized portfolio of parlay slips.
-    
-    Args:
-        legs: List of betting legs
-        settings: Portfolio generation settings
-    
-    Returns:
-        PortfolioResult with slips, sizing, and exposures
-    """
-    slips = _build_portfolio(legs, settings)
-    
-    # Compute exposures
-    player_exposure = {}
-    game_exposure = {}
-    
+def build_portfolio_result(slips: list[Slip], settings: PortfolioSettings) -> PortfolioResult:
+    """Compute exposures, sizing, survival, and warnings for a finished slip list."""
+    player_exposure: dict[str, float] = {}
+    game_exposure: dict[str, float] = {}
+
     num_slips = len(slips)
     if num_slips == 0:
         return PortfolioResult(
@@ -860,45 +852,34 @@ def generate_portfolio(
             player_exposure={},
             game_exposure=None,
         )
-    
+
     for slip in slips:
         for slip_leg in slip.legs:
             player = slip_leg.leg.participant
             player_exposure[player] = player_exposure.get(player, 0) + 1
-            
+
             game_key = extract_game_key(player)
             if game_key:
                 game_exposure[game_key] = game_exposure.get(game_key, 0) + 1
-    
-    # Normalize to fractions
+
     for player in player_exposure:
         player_exposure[player] /= num_slips
     for game in game_exposure:
         game_exposure[game] /= num_slips
-    
-    # Compute unit sizing
+
     unit_size = None
     slate_risk = None
-    
+
     if settings.bankroll and settings.bankroll > 0:
-        # Section 2E: Size by % of capital. total_risk = capital * risk_per_session_pct
         risk_pct = getattr(settings, "risk_per_session_pct", None) or settings.risk_per_slate
         slate_risk = settings.bankroll * risk_pct
-        
+
         if settings.sizing_mode == "equal":
             unit_size = slate_risk / num_slips
-        else:  # weighted
-            # Allocate proportionally to slip score, with caps
-            total_score = sum(slip.score for slip in slips)
+        else:
             base_unit = slate_risk / num_slips
-            
-            # For simplicity in weighted mode, we compute allocations but
-            # return unit_size as the base; in practice, the caller can
-            # use slip.score to scale each unit.
-            # For now, return equal unit but note this could be enhanced.
             unit_size = base_unit
 
-    # Section 2B: Survival probability (with correlation haircut)
     p_full_loss = 1.0
     for slip in slips:
         p_full_loss *= 1.0 - slip.estimated_prob
@@ -907,10 +888,7 @@ def generate_portfolio(
     correlation_penalty = min(0.15, penalty * 0.02)
     survival_probability = max(0.001, raw_survival - correlation_penalty)
 
-    # Section 2C: Diversification score 0–100
     diversification_score = max(0.0, 100.0 - penalty * 20.0)
-
-    # Section 2D: Correlation warnings
     warnings = _compute_correlation_warnings(slips)
 
     return PortfolioResult(
@@ -923,6 +901,23 @@ def generate_portfolio(
         diversification_score=round(diversification_score, 1),
         warnings=warnings,
     )
+
+
+def generate_portfolio(
+    legs: list[Leg],
+    settings: PortfolioSettings,
+) -> PortfolioResult:
+    """Generate an optimized portfolio of parlay slips.
+
+    Args:
+        legs: List of betting legs
+        settings: Portfolio generation settings
+
+    Returns:
+        PortfolioResult with slips, sizing, and exposures
+    """
+    slips = _build_portfolio(legs, settings)
+    return build_portfolio_result(slips, settings)
 
 
 # ============================================================================

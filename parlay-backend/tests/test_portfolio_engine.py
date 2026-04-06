@@ -56,22 +56,18 @@ def test_exposure_caps():
     assert 0.0 <= pe.get("B", 0) <= 1.0
 
 
-def test_risk_profile_shapes_differ():
+def test_legacy_risk_profile_still_accepted():
+    """risk_profile is ignored; unified engine returns 200 for legacy clients."""
     legs = [
         {"participant":"A","market":"Points","side":"over","odds":-110,"odds_format":"american","hit_prob_pct":50,"book":"D"},
         {"participant":"B","market":"Moneyline","side":"home","odds":120,"odds_format":"american","hit_prob_pct":45,"book":"F"},
     ]
 
-    counts = {}
     for profile in ["stable", "growth", "high_upside"]:
         r = client.post("/v1/parlays/suggest", json={"legs": legs, "risk_profile": profile})
         assert r.status_code == 200
         data = r.json()
-        counts[profile] = len(data.get("parlays", []))
-
-    # expect different counts (stable usually returns at least as many as growth)
-    assert counts["stable"] >= counts["growth"]
-    assert counts["growth"] >= counts["high_upside"]
+        assert "parlays" in data
 
 
 def test_bankroll_summary_in_response():

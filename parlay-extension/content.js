@@ -845,6 +845,67 @@ function logPuffExtractedLegIfDebug(leg) {
   __puff_extractDebugLegCount++;
 }
 
+/**
+ * Multi-book (Option B): prefer img[alt] inside .tour_bet_and_books / .tour__bet_and_books;
+ * fallback parse row id segment (e.g. POWER:betonline-circa_vegas-fanduel-...).
+ */
+function extractOddsJamMultiBooksFromTourRow(scopeEl, idSourceEl) {
+  const out = [];
+  const tryCollectFrom = (root) => {
+    if (!root) return;
+    const booksContainer = root.querySelector(".tour_bet_and_books, .tour__bet_and_books");
+    if (booksContainer) {
+      for (const img of booksContainer.querySelectorAll("img[alt]")) {
+        const alt = (img.getAttribute("alt") || "").trim();
+        if (alt.length > 1 && !out.includes(alt)) out.push(alt);
+      }
+    }
+  };
+  tryCollectFrom(scopeEl);
+  if (idSourceEl && idSourceEl !== scopeEl) tryCollectFrom(idSourceEl);
+  if (out.length > 0) return out;
+
+  const rowId = (idSourceEl && idSourceEl.id) || (scopeEl && scopeEl.id) || "";
+  const powerSegment = rowId.split(":").find((s) => s.includes("no_vig_odds") || s.includes("-"));
+  if (powerSegment) {
+    const bookSlugs = powerSegment
+      .replace(/no_vig_odds/gi, "")
+      .replace(/pinnacle/gi, "")
+      .split("-")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 2);
+    for (const s of bookSlugs) {
+      const title = s
+        .split("_")
+        .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ""))
+        .filter(Boolean)
+        .join(" ");
+      if (title && !out.includes(title)) out.push(title);
+    }
+  }
+  return out;
+}
+
+/**
+ * Normalize event/matchup text into a stable same-game id (sorted team fragments).
+ * @param {string|null|undefined} eventStr
+ * @returns {string|null}
+ */
+function makeGameKey(eventStr) {
+  if (!eventStr) return null;
+  const clean = String(eventStr)
+    .replace(/[-+]\d+(\.\d+)?/g, "")
+    .trim();
+  const parts = clean
+    .split(/\s+vs\.?\s+|\s+@\s+/i)
+    .map((t) => t.trim().toLowerCase().slice(0, 12))
+    .filter(Boolean);
+  if (parts.length === 2) {
+    return parts.sort().join("|");
+  }
+  return clean.toLowerCase().slice(0, 20) || null;
+}
+
 // Build a RawLeg from an OddsJam +EV row using exact selectors (no column guessing).
 function toRawLegFromOddsJam(rowEl) {
   const rowRoot = resolveOddsJamBetRow(rowEl);
@@ -909,6 +970,26 @@ function toRawLegFromOddsJam(rowEl) {
     const market = c3 || "Prop";
 
     const c4lines = c4.split("\n").map((l) => l.trim()).filter(Boolean);
+
+    const booksFromDom = extractOddsJamMultiBooksFromTourRow(actualBetRow, rowRoot);
+    const bookImg = actualBetRow.children[4]?.querySelector("img");
+    const bookFromImg = bookImg
+      ? bookImg.alt?.trim() || bookNameFromSportsbookLogoImg(bookImg) || null
+      : null;
+    const book = bookFromImg || parseOddsJamBook(null, actualBetRow);
+
+    let allBooks = booksFromDom.length > 0 ? booksFromDom.slice() : [];
+    if (allBooks.length === 0 && book) allBooks.push(book);
+    if (allBooks.length === 0) allBooks.push("Unknown Book");
+
+    const bookLineSkip = new Set();
+    for (const b of allBooks) {
+      bookLineSkip.add(b);
+      for (const line of c4lines) {
+        if (line.toLowerCase() === b.toLowerCase()) bookLineSkip.add(line);
+      }
+    }
+
     let participant = null;
     let oddsAm = 0;
     let lineVal = 0;
@@ -916,6 +997,7 @@ function toRawLegFromOddsJam(rowEl) {
     let nameParts = [];
 
     for (const bline of c4lines) {
+      if (bookLineSkip.has(bline)) continue;
       if (/^(SITE|BET|GAME)$/i.test(bline)) continue;
       if (/^\$\d+$/.test(bline)) continue;
       if (/liq/i.test(bline)) continue;
@@ -982,40 +1064,50 @@ function toRawLegFromOddsJam(rowEl) {
     const hitMatch = c5.match(/(\d{1,3}(?:\.\d{1,2})?)\s*%/);
     const hitProb = hitMatch ? parseFloat(hitMatch[1]) : 0;
 
-    const bookImg = actualBetRow.children[4]?.querySelector("img");
-    const book = bookImg
-      ? bookImg.alt?.trim() || bookNameFromSportsbookLogoImg(bookImg) || "Unknown Book"
-      : parseOddsJamBook(null, actualBetRow);
+    const eventTextOj8 =
+      (matchup && String(matchup).trim()) ||
+      (c2 && String(c2).replace(/\s+/g, " ").trim()) ||
+      null;
 
-    const leg = {
-      source: "extension",
-      book,
-      sport: sport || null,
-      league: league || null,
-      market,
-      market_type: market,
-      participant,
-      player: participant,
-      prop: market,
-      side,
-      line: Number.isFinite(lineVal) ? lineVal : 0,
-      odds: oddsAm,
-      odds_format: "american",
-      ev,
-      ev_pct: ev,
-      hit_prob: hitProb,
-      hit_prob_pct: hitProb,
-      url: null,
-      captured_at: new Date().toISOString(),
-    };
+    const capturedAt = new Date().toISOString();
+    const legsOut = [];
+    for (const bookName of allBooks) {
+      const leg = {
+        source: "extension",
+        book: bookName,
+        sport: sport || null,
+        league: league || null,
+        market,
+        market_type: market,
+        participant,
+        player: participant,
+        prop: market,
+        side,
+        line: Number.isFinite(lineVal) ? lineVal : 0,
+        odds_american: oddsAm,
+        odds: oddsAm,
+        odds_format: "american",
+        ev,
+        ev_pct: ev,
+        hit_prob: hitProb,
+        hit_prob_pct: hitProb,
+        event: eventTextOj8 || undefined,
+        game_key: makeGameKey(eventTextOj8),
+        url: null,
+        captured_at: capturedAt,
+      };
 
-    logPuffExtractedLegIfDebug(leg);
+      logPuffExtractedLegIfDebug(leg);
 
-    if (!isRawLegValidForBackend(leg)) {
-      console.warn("[PUFF] 8-child leg failed validation", leg);
-      return null;
+      if (!isRawLegValidForBackend(leg)) {
+        console.warn("[PUFF] 8-child leg failed validation", leg);
+        continue;
+      }
+      legsOut.push(leg);
     }
-    return leg;
+
+    if (legsOut.length === 0) return null;
+    return legsOut;
   }
 
   const topSection = actualBetRow.children[0];
@@ -1126,7 +1218,11 @@ function toRawLegFromOddsJam(rowEl) {
 
     if (!participant) participant = matchup || "Unknown participant";
 
-    const book = parseOddsJamBook(bottomSection, rowRoot);
+    const booksFromDom = extractOddsJamMultiBooksFromTourRow(bottomSection, rowRoot);
+    const bookSingle = parseOddsJamBook(bottomSection, rowRoot);
+    let allBooksTwo = booksFromDom.length > 0 ? booksFromDom.slice() : [];
+    if (allBooksTwo.length === 0 && bookSingle) allBooksTwo.push(bookSingle);
+    if (allBooksTwo.length === 0) allBooksTwo.push("Unknown Book");
 
     if (!oddsAm || oddsAm === 0) {
       for (const el of bottomSection.querySelectorAll("p, span, div")) {
@@ -1173,38 +1269,53 @@ function toRawLegFromOddsJam(rowEl) {
     const stakeAmount = parseOddsJamBetSizeStake(rowRoot);
     const eventTimeLabel = parseOddsJamEventTimeLabel(rowRoot);
 
-    const leg = {
-      source: "extension",
-      book,
-      sport: sport || null,
-      league: league || null,
-      market,
-      market_type: market,
-      participant,
-      player: participant,
-      prop: market,
-      side,
-      line: Number.isFinite(lineVal) ? lineVal : 0,
-      odds: oddsAm,
-      odds_format: "american",
-      ev,
-      ev_pct: ev,
-      hit_prob: hitProb,
-      hit_prob_pct: hitProb,
-      stake_amount: stakeAmount != null ? stakeAmount : undefined,
-      team_abbrev: teamAbbrev || null,
-      event_time_label: eventTimeLabel || null,
-      url: null,
-      captured_at: new Date().toISOString(),
-    };
+    const eventTextOj2 =
+      (matchup && String(matchup).trim()) ||
+      topLines.find((l) => /\bvs\.?\b/i.test(l) || /\s@\s/.test(l)) ||
+      null;
 
-    logPuffExtractedLegIfDebug(leg);
+    const capturedAtTwo = new Date().toISOString();
+    const legsOutTwo = [];
+    for (const bookName of allBooksTwo) {
+      const leg = {
+        source: "extension",
+        book: bookName,
+        sport: sport || null,
+        league: league || null,
+        market,
+        market_type: market,
+        participant,
+        player: participant,
+        prop: market,
+        side,
+        line: Number.isFinite(lineVal) ? lineVal : 0,
+        odds_american: oddsAm,
+        odds: oddsAm,
+        odds_format: "american",
+        ev,
+        ev_pct: ev,
+        hit_prob: hitProb,
+        hit_prob_pct: hitProb,
+        stake_amount: stakeAmount != null ? stakeAmount : undefined,
+        team_abbrev: teamAbbrev || null,
+        event_time_label: eventTimeLabel || null,
+        event: eventTextOj2 || undefined,
+        game_key: makeGameKey(eventTextOj2),
+        url: null,
+        captured_at: capturedAtTwo,
+      };
 
-    if (!isRawLegValidForBackend(leg)) {
-      console.warn("[PUFF] two-child leg failed validation", leg);
-      return null;
+      logPuffExtractedLegIfDebug(leg);
+
+      if (!isRawLegValidForBackend(leg)) {
+        console.warn("[PUFF] two-child leg failed validation", leg);
+        continue;
+      }
+      legsOutTwo.push(leg);
     }
-    return leg;
+
+    if (legsOutTwo.length === 0) return null;
+    return legsOutTwo;
   }
 
   const isCardLayout = rowRoot.closest("li.my-2.rounded-md") !== null;
@@ -1334,33 +1445,42 @@ function toRawLegFromOddsJam(rowEl) {
 
   const stakeAmount = parseOddsJamBetSizeStake(rowRoot);
 
-  const eventTimeLabel = parseOddsJamEventTimeLabel(rowRoot);
-  const hitProb = parseOddsJamHitProbPct(rowRoot, isFullWidthTable);
+    const eventTimeLabel = parseOddsJamEventTimeLabel(rowRoot);
+    const hitProb = parseOddsJamHitProbPct(rowRoot, isFullWidthTable);
 
-  const leg = {
-    source: "extension",
-    book,
-    sport: sport || null,
-    league: league || null,
-    market,
-    market_type: market,
-    participant,
-    player: playerName || participant,
-    prop: market,
-    side,
-    line: Number.isFinite(line) ? line : 0,
-    odds: oddsAm,
-    odds_format: "american",
-    ev,
-    ev_pct: ev,
-    hit_prob: hitProb,
-    hit_prob_pct: hitProb,
-    stake_amount: stakeAmount != null ? stakeAmount : undefined,
-    team_abbrev: teamAbbrev || null,
-    event_time_label: eventTimeLabel || null,
-    url: null,
-    captured_at: new Date().toISOString()
-  };
+    const eventTextOjMain =
+      (matchup && String(matchup).trim()) ||
+      (eventCell
+        ? String(eventCell.innerText || eventCell.textContent || "").replace(/\s+/g, " ").trim()
+        : "") ||
+      null;
+
+    const leg = {
+      source: "extension",
+      book,
+      sport: sport || null,
+      league: league || null,
+      market,
+      market_type: market,
+      participant,
+      player: playerName || participant,
+      prop: market,
+      side,
+      line: Number.isFinite(line) ? line : 0,
+      odds: oddsAm,
+      odds_format: "american",
+      ev,
+      ev_pct: ev,
+      hit_prob: hitProb,
+      hit_prob_pct: hitProb,
+      stake_amount: stakeAmount != null ? stakeAmount : undefined,
+      team_abbrev: teamAbbrev || null,
+      event_time_label: eventTimeLabel || null,
+      event: eventTextOjMain || undefined,
+      game_key: makeGameKey(eventTextOjMain),
+      url: null,
+      captured_at: new Date().toISOString()
+    };
 
   logPuffExtractedLegIfDebug(leg);
 
@@ -2284,6 +2404,7 @@ function createCheckboxOverlay() {
   const items = [];
 
   function addCheckboxToLeg(legEl, c) {
+    if (rowHasCheckbox(legEl)) return;
     const parent = legEl.parentElement;
     if (!parent) return;
     const tag = (legEl.tagName || "").toUpperCase();
@@ -2334,7 +2455,11 @@ function createCheckboxOverlay() {
   function rowHasCheckbox(row) {
     if (!row || row.nodeType !== 1) return false;
     if (row.tagName === "TR") return row.querySelector("[data-puff-checkbox-cell]") != null;
-    return row.closest("[data-puff-checkbox-wrapper]") != null;
+    // Already wrapped (candidate is the leg node moved inside our wrapper)
+    if (row.closest("[data-puff-checkbox-wrapper]") != null) return true;
+    // Candidate is an ancestor (e.g. li) of a row we already wrapped — avoid second checkbox
+    if (row.querySelector("[data-puff-checkbox-wrapper]") != null) return true;
+    return false;
   }
 
   function resyncCheckboxes() {
@@ -2429,9 +2554,6 @@ function createCheckboxOverlay() {
   observer.observe(document.body, { childList: true, subtree: true });
   overlay._puffObserver = observer;
 
-  // OddsJam and similar sites may render rows after overlay—run resync once after short delay
-  setTimeout(resyncCheckboxes, 300);
-
   const tool = document.createElement("div");
   tool.style.cssText =
     "position:fixed;bottom:16px;left:50%;transform:translateX(-50%);max-width:min(96vw,520px);padding:10px 14px;border-radius:8px;background:rgba(20,27,40,.96);color:#fff;font-size:13px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;z-index:2147483647;pointer-events:auto;box-shadow:0 4px 16px rgba(0,0,0,.4);box-sizing:border-box;overflow:visible;";
@@ -2451,10 +2573,22 @@ function createCheckboxOverlay() {
   cancelBtn.style.cssText = "padding:6px 14px;background:rgba(60,70,90,.9);color:#fff;border:none;border-radius:6px;cursor:pointer;";
 
   doneBtn.addEventListener("click", () => {
+    const blocked = __puff_oddsJamCaptureGuard();
+    if (blocked) {
+      destroyCheckboxOverlay();
+      selecting = false;
+      return;
+    }
     const checked = items.filter(({ box }) => box.querySelector("input")?.checked).map((i) => i.candidate);
     const headerBookMap = buildHeaderBookMap(document);
     resetPuffExtractLegDebugCount();
-    const legs = checked.map((c) => toRawLeg(c, headerBookMap)).filter((l) => isRawLegValidForBackend(l));
+    const legs = checked
+      .flatMap((c) => {
+        const r = toRawLeg(c, headerBookMap);
+        if (r == null) return [];
+        return Array.isArray(r) ? r : [r];
+      })
+      .filter((l) => isRawLegValidForBackend(l));
     saveCachedLegs(legs);
     saveCaptureMode("area");
     singleLegSelection = false;
@@ -2539,7 +2673,11 @@ function refreshCachedLegs() {
     }
     const headerBookMap = buildHeaderBookMap(selectedRoot || document);
     const legs = candidates
-      .map((c) => toRawLeg(c, headerBookMap, null))
+      .flatMap((c) => {
+        const r = toRawLeg(c, headerBookMap, null);
+        if (r == null) return [];
+        return Array.isArray(r) ? r : [r];
+      })
       .filter((l) => isRawLegValidForBackend(l));
     saveCachedLegs(deduplicateNormalizedLegs(legs));
   } catch (e) {
@@ -2715,8 +2853,11 @@ function toRawLeg(c, headerBookMap, columnIndices) {
   const ojRow = resolveOddsJamBetRow(rowEl);
   if (ojRow) {
     try {
-      const leg = toRawLegFromOddsJam(ojRow);
-      if (leg) return leg;
+      const oj = toRawLegFromOddsJam(ojRow);
+      if (oj == null) return null;
+      if (Array.isArray(oj)) return oj.length === 0 ? null : oj;
+      if (!isRawLegValidForBackend(oj)) return null;
+      return oj;
     } catch (e) {
       console.log("[PUFF] toRawLegFromOddsJam failed, falling back to generic", e);
     }
@@ -2732,6 +2873,7 @@ function toRawLeg(c, headerBookMap, columnIndices) {
   let stake_amount = null;
   let participant = null;
   let oddsFound = null;
+  let eventColText = null;
   const { side, line } = parseMarketSideLine(t);
 
   if (columnIndices && rowCells.length > 0) {
@@ -2765,6 +2907,7 @@ function toRawLeg(c, headerBookMap, columnIndices) {
     }
     if (columnIndices.eventCol != null && rowCells[columnIndices.eventCol]) {
       const eventText = textOf(rowCells[columnIndices.eventCol]);
+      eventColText = eventText || null;
       participant = extractMatchupFromEvent(eventText) || eventText.replace(/\bToday at \d{1,2}:\d{2}\s*(?:AM|PM)\s*/i, "").trim().slice(0, 80);
     }
   }
@@ -2800,6 +2943,10 @@ function toRawLeg(c, headerBookMap, columnIndices) {
       ? Number(oddsFound.odds)
       : 0;
 
+  const eventForLeg =
+    eventColText ||
+    (participant && (/\bvs\.?\b/i.test(participant) || /\s@\s/.test(participant)) ? participant : null);
+
   const leg = {
     source: "extension",
     book,
@@ -2819,6 +2966,8 @@ function toRawLeg(c, headerBookMap, columnIndices) {
     hit_prob: hitFin,
     hit_prob_pct: hitFin,
     stake_amount: stake_amount != null ? stake_amount : undefined,
+    event: eventForLeg || undefined,
+    game_key: makeGameKey(eventForLeg),
     url: null,
     captured_at: new Date().toISOString()
   };
@@ -2860,7 +3009,11 @@ function captureLegsFromCandidates(candidates, root, opts) {
   if (columnIndices) console.log("[PUFF] capture: columnIndices", columnIndices);
 
   const legsRaw = candidates
-    .map((c) => toRawLeg(c, headerBookMap, columnIndices))
+    .flatMap((c) => {
+      const r = toRawLeg(c, headerBookMap, columnIndices);
+      if (r == null) return [];
+      return Array.isArray(r) ? r : [r];
+    })
     .filter((l) => isRawLegValidForBackend(l));
 
   let legs = deduplicateNormalizedLegs(legsRaw);
@@ -2868,8 +3021,29 @@ function captureLegsFromCandidates(candidates, root, opts) {
   return legs;
 }
 
+/** Non-null return means capture is blocked (OddsJam-only). Notifies popup via CAPTURE_RESULT. */
+function __puff_oddsJamCaptureGuard() {
+  const isOddsJam = window.location.hostname.includes("oddsjam.com");
+  if (isOddsJam) return null;
+  console.warn("[PUFF] Not on OddsJam — capture skipped");
+  const error = "Please navigate to OddsJam +EV optimizer to capture legs.";
+  try {
+    chrome.runtime.sendMessage({
+      type: "CAPTURE_RESULT",
+      legs: [],
+      error,
+    });
+  } catch (e) {
+    console.debug("[PUFF] CAPTURE_RESULT sendMessage", e);
+  }
+  return error;
+}
+
 /** Whole-page capture: current DOM only, no scroll (async for message handler API). */
 async function __puff_handleCaptureWholePageAsync() {
+  const blocked = __puff_oddsJamCaptureGuard();
+  if (blocked) return { ok: false, legs: [], error: blocked };
+
   selectedRoot = null;
   singleLegSelection = false;
   saveStoredSelection(null);
@@ -2909,6 +3083,8 @@ function __puff_handleMessage(msg) {
   }
 
   if (msg.type === "CAPTURE_LEGS") {
+    const blocked = __puff_oddsJamCaptureGuard();
+    if (blocked) return { ok: false, legs: [], error: blocked };
     try {
       const candidates = singleLegSelection && selectedRoot
         ? extractSingleLeg(selectedRoot)

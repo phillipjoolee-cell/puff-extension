@@ -4,7 +4,6 @@
 
 const STATE = {
   legs: [],
-  profile: "stable",
   legsPerSlip: 3,
   bankroll: null,
   /** Per-sportsbook balances from options (puff_bookBankrolls); drives bettable filter & allocation. */
@@ -17,12 +16,20 @@ const STATE = {
   builderLegs: [], // Section 4: Parlay Builder legs
   // Section 5: Slip editor
   parlays: [],
+  /** When set, Generated Slips UI groups by book (from API `book_sections`). */
+  bookSections: null,
   summary: null,
   editingSlipIndex: null,
   editingSlipLegs: [], // Array of leg | null — null = ghost slot
   replacementSuggestion: null,
   selectedSlipIndex: null, // When set, metrics show this slip's values; null = portfolio view
 };
+
+/** Per-book bankroll strings while typing — no storage/re-render until blur/change or Save. */
+const pendingBankrolls = {};
+
+/** Sportsbooks user enabled for bankroll (survives re-render; not tied to saved $ amount). */
+const selectedBooks = new Set();
 
 const $ = (id) => document.getElementById(id);
 
@@ -74,23 +81,46 @@ function hitProbColorClass(pct) {
   return "metricBad";
 }
 
-// Slip quality: avg leg EV % and combined hit probability (product of leg hit %). See QUALITY_THRESHOLDS.md.
+// Builder suggestion thresholds (avg leg EV / combined hit messaging)
 const SLIP_QUALITY_HIT_OK = 8;
 const SLIP_QUALITY_EV_OK = 2;
-function getSlipQuality(slip) {
+
+function getEvTier(slip) {
   const legs = slip.legs || [];
-  const avgEv =
-    legs.length > 0
-      ? legs.reduce((sum, l) => sum + (l.ev_pct || l.ev || 0), 0) / legs.length
-      : 0;
-  const combinedHitProb =
-    legs.reduce((prod, l) => {
-      const p = (l.hit_prob_pct || l.hit_prob || 50) / 100;
-      return prod * p;
-    }, 1.0) * 100;
-  if (avgEv >= 5 && combinedHitProb >= 15) return "good";
-  if (avgEv >= 2 && combinedHitProb >= 8) return "ok";
-  return "bad";
+  const combinedHit = legs.reduce((p, l) => p * ((l.hit_prob_pct || l.hit_prob || 50) / 100), 1);
+  const payout = legs.reduce((p, l) => {
+    const o = l.odds_american || l.odds || 0;
+    if (!o) return p;
+    return p * (o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o));
+  }, 1);
+  const parlayEv = (combinedHit * payout - 1) * 100;
+  if (parlayEv >= 20) return "strong";
+  if (parlayEv >= 8) return "moderate";
+  return "low";
+}
+
+function getRiskTier(slip) {
+  const legs = slip.legs || [];
+  const combinedHit =
+    legs.reduce((p, l) => p * ((l.hit_prob_pct || l.hit_prob || 50) / 100), 1) * 100;
+  if (combinedHit >= 15) return "safe";
+  if (combinedHit >= 7) return "risky";
+  return "longshot";
+}
+
+function buildSlipIndicators(slip) {
+  const evTier = getEvTier(slip);
+  const riskTier = getRiskTier(slip);
+  const evLabels = { strong: "+EV", moderate: "EV+", low: "EV" };
+  const riskTitles = {
+    safe: "Safe — likely to hit",
+    risky: "Risky — coin flip",
+    longshot: "Longshot — moon shot",
+  };
+  const rt = riskTitles[riskTier];
+  const evTxt = evLabels[evTier];
+  const fullLabel = `${evTxt} — ${rt}`.replace(/"/g, "&quot;");
+  return `<span class="slipQualityBadge slipQ-ev-${evTier} slipQ-risk-${riskTier}" title="${fullLabel}" role="img" aria-label="${fullLabel}">${evTxt}</span>`;
 }
 
 // Compute hit probability for a single parlay (product of leg probs, as %)
@@ -225,7 +255,7 @@ function renderMetrics(summary, parlays, selectedSlipIndex = null) {
     divEl.className = "metricValue";
     if (divEl.closest(".metricCard")) divEl.closest(".metricCard").title = "Diversification applies to portfolio";
 
-    // Capital Allocation — per-book split when configured; else backend unit; else prompt
+    // Risk per slip — per-book split when configured; else backend unit; else prompt
     const perBookCap = getSlipCapitalAllocation(slip);
     const unit = summary?.unit_size;
     if (perBookCap != null) {
@@ -241,7 +271,7 @@ function renderMetrics(summary, parlays, selectedSlipIndex = null) {
       capEl.style.color = "";
       capEl.title = "";
     } else {
-      capEl.textContent = "Set bankroll in Settings";
+      capEl.textContent = "Set risk budget in Settings";
       capEl.className = "metricValue";
       capEl.style.fontSize = "11px";
       capEl.style.color = "var(--textMuted)";
@@ -291,7 +321,7 @@ function renderMetrics(summary, parlays, selectedSlipIndex = null) {
         capEl.textContent = `$${Number(unit).toFixed(2)} / slip`;
       }
     } else {
-      capEl.textContent = "Set bankroll";
+      capEl.textContent = "Set risk budget";
       capEl.className = "metricValue";
       capEl.style.fontSize = "11px";
       capEl.style.color = "var(--textMuted)";
@@ -489,56 +519,58 @@ function renderWarnings(warnings) {
   section.classList.remove("hidden");
 }
 
-function renderSlips(parlays) {
-  const root = $("slipsList");
-  root.innerHTML = "";
+function slipLegsIdentityKey(slip) {
+  const legs = slip?.legs || [];
+  return JSON.stringify(
+    legs.map((l) => [String(l.participant || ""), String(l.market || ""), l.line, l.odds ?? l.odds_american])
+  );
+}
 
-  if (!parlays || !parlays.length) {
-    root.innerHTML = '<div style="text-align:center;color:var(--textMuted);font-size:11px;">No slips generated.</div>';
-    const hint = $("bettableFilterHint");
-    if (hint) hint.textContent = "";
-    return;
+/** Index of `slip` in canonical `portfolio` (stable after UI sort order changes). */
+function slipIndexInPortfolio(portfolio, slip) {
+  if (!portfolio || !slip) return -1;
+  let i = portfolio.indexOf(slip);
+  if (i >= 0) return i;
+  if (slip.id != null) {
+    i = portfolio.findIndex((p) => p && p.id === slip.id);
+    if (i >= 0) return i;
   }
+  const key = slipLegsIdentityKey(slip);
+  return portfolio.findIndex((p) => slipLegsIdentityKey(p) === key);
+}
 
-  const bettableOnly = $("bettableOnlyToggle")?.checked;
-  if (bettableOnly && STATE.selectedSlipIndex != null) {
-    const selSlip = parlays[STATE.selectedSlipIndex];
-    if (selSlip && !isSlipBettable(selSlip)) {
-      STATE.selectedSlipIndex = null;
-      renderMetrics(STATE.summary, parlays, null);
-    }
-  }
-
-  // Sort slips: green first, then yellow, then red; within each tier by parlay EV descending
-  const qualityOrder = { good: 0, ok: 1, bad: 2 };
-  parlays.sort((a, b) => {
-    const qa = qualityOrder[getSlipQuality(a)] ?? 2;
-    const qb = qualityOrder[getSlipQuality(b)] ?? 2;
-    if (qa !== qb) return qa - qb;
+function sortSlipsByEv(slips) {
+  const evOrder = { strong: 0, moderate: 1, low: 2 };
+  return slips.slice().sort((a, b) => {
+    const ea = evOrder[getEvTier(a)] ?? 2;
+    const eb = evOrder[getEvTier(b)] ?? 2;
+    if (ea !== eb) return ea - eb;
     return parlayEv(b) - parlayEv(a);
   });
+}
 
-  let visibleCount = 0;
-  parlays.forEach((slip, slipIndex) => {
-    if (bettableOnly && !isSlipBettable(slip)) return;
-    visibleCount++;
+function buildSlipCard(slip, slipIndex, parlays) {
+  const card = document.createElement("div");
+  const evTier = getEvTier(slip);
+  const riskTier = getRiskTier(slip);
+  const borderQuality = evTier === "strong" ? "good" : evTier === "moderate" ? "ok" : "bad";
+  const bettable = isSlipBettable(slip);
+  card.className =
+    "slipCard slipQuality-" + borderQuality + (bettable ? "" : " slipCard--notBettable");
+  card.dataset.slipIndex = String(slipIndex);
+  card.title = `EV tier: ${evTier}; risk: ${riskTier}`;
 
-    const card = document.createElement("div");
-    const quality = getSlipQuality(slip);
-    const bettable = isSlipBettable(slip);
-    card.className = "slipCard slipQuality-" + quality + (bettable ? "" : " slipCard--notBettable");
-    card.dataset.slipIndex = String(slipIndex);
-    card.title = "Quality: " + (quality === "good" ? "Good" : quality === "ok" ? "OK" : "Bad");
+  const title = slipTitleFromLegs(slip.legs);
+  const odds = slip.est_odds || slip.odds || "-";
 
-    const title = slipTitleFromLegs(slip.legs);
-    const odds = slip.est_odds || slip.odds || "-";
-
-    const header = document.createElement("div");
-    header.className = "slipCardHeader";
-    const qualityIcon = quality === "good" ? "🟢" : quality === "ok" ? "🟡" : "🔴";
-    const warnPrefix = bettable ? "" : '<span class="slipCardWarn" aria-hidden="true">⚠️ </span>';
-    header.innerHTML = `
-      <div class="slipCardQuality" aria-label="Slip quality: ${quality}">${warnPrefix}${qualityIcon}</div>
+  const header = document.createElement("div");
+  header.className = "slipCardHeader";
+  const warnPrefix = bettable ? "" : '<span class="slipCardWarn" aria-hidden="true">⚠️ </span>';
+  header.innerHTML = `
+      <div class="slipCardQuality" aria-label="EV ${evTier}, risk ${riskTier}">
+        ${warnPrefix}
+        ${buildSlipIndicators(slip)}
+      </div>
       <div class="slipCardTitle">${title}</div>
       <div class="slipCardOdds">${odds}</div>
       <div class="slipCardActions">
@@ -547,75 +579,77 @@ function renderSlips(parlays) {
       </div>
     `;
 
-    // Legs as comma-separated list (Market: Participant)
-    const legsText = slip.legs
+  const legsText = slip.legs
+    .map((l) => {
+      const legLabel = `${l.market}: ${l.participant}`;
+      return legLabel;
+    })
+    .join(", ");
+  const legs = document.createElement("div");
+  legs.className = "slipCardLegs";
+  legs.textContent = legsText;
+
+  const capAlloc = getSlipCapitalAllocation(slip);
+  const capRow = document.createElement("div");
+  capRow.className = "slipCardCapital";
+  const capLabel = document.createElement("div");
+  capLabel.className = "slipCardCapitalLabel";
+  capLabel.textContent = "Risk per slip";
+  const capVal = document.createElement("div");
+  capVal.className = "slipCardCapitalValue";
+  capVal.textContent = capAlloc != null ? capAlloc : "Set risk budget in Settings";
+  capRow.appendChild(capLabel);
+  capRow.appendChild(capVal);
+
+  const recommended = document.createElement("div");
+  recommended.className = "slipRecommended";
+  recommended.textContent = "Recommended";
+
+  card.appendChild(header);
+  card.appendChild(legs);
+  card.appendChild(capRow);
+  card.appendChild(recommended);
+
+  card.querySelector(".slipCardCopyBtn").addEventListener("click", (e) => {
+    const btn = e.target;
+    const text = slip.legs
       .map((l) => {
-        const legLabel = `${l.market}: ${l.participant}`;
-        return legLabel;
+        const sideLabel = l.side && l.side !== "other" ? ` ${l.side}` : "";
+        return `${l.participant}${sideLabel} @ ${l.odds_american ?? l.odds ?? "?"}`;
       })
-      .join(", ");
-    const legs = document.createElement("div");
-    legs.className = "slipCardLegs";
-    legs.textContent = legsText;
-
-    const capAlloc = getSlipCapitalAllocation(slip);
-    const capRow = document.createElement("div");
-    capRow.className = "slipCardCapital";
-    capRow.textContent = capAlloc != null ? capAlloc : "Set bankroll in Settings";
-
-    // Section 3: "Recommended" label for engine-generated slips
-    const recommended = document.createElement("div");
-    recommended.className = "slipRecommended";
-    recommended.textContent = "Recommended";
-
-    card.appendChild(header);
-    card.appendChild(legs);
-    card.appendChild(capRow);
-    card.appendChild(recommended);
-
-    // Copy button handler
-    card.querySelector(".slipCardCopyBtn").addEventListener("click", (e) => {
-      const btn = e.target;
-      const text = slip.legs
-        .map((l) => {
-          const sideLabel = l.side && l.side !== "other" ? ` ${l.side}` : "";
-          return `${l.participant}${sideLabel} @ ${l.odds_american ?? l.odds ?? "?"}`;
-        })
-        .join("\n");
-      navigator.clipboard.writeText(text);
-      btn.textContent = "✓";
-      btn.classList.add("copied");
-      setTimeout(() => {
-        btn.textContent = "📋";
-        btn.classList.remove("copied");
-      }, 1500);
-    });
-
-    // Section 5: Edit button
-    card.querySelector(".slipCardEditBtn")?.addEventListener("click", (e) => {
-      e.stopPropagation();
-      openSlipEditor(slipIndex);
-    });
-
-    // Click card to view this slip's individual metrics (Edit/Copy don't trigger)
-    card.addEventListener("click", (e) => {
-      if (e.target.closest(".slipCardEditBtn, .slipCardCopyBtn")) return;
-      const isSelected = STATE.selectedSlipIndex === slipIndex;
-      STATE.selectedSlipIndex = isSelected ? null : slipIndex;
-      document.querySelectorAll(".slipCard.isSelected").forEach((c) => c.classList.remove("isSelected"));
-      if (STATE.selectedSlipIndex != null) card.classList.add("isSelected");
-      renderMetrics(STATE.summary, parlays, STATE.selectedSlipIndex);
-    });
-
-    root.appendChild(card);
+      .join("\n");
+    navigator.clipboard.writeText(text);
+    btn.textContent = "✓";
+    btn.classList.add("copied");
+    setTimeout(() => {
+      btn.textContent = "📋";
+      btn.classList.remove("copied");
+    }, 1500);
   });
 
+  card.querySelector(".slipCardEditBtn")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openSlipEditor(slipIndex);
+  });
+
+  card.addEventListener("click", (e) => {
+    if (e.target.closest(".slipCardEditBtn, .slipCardCopyBtn")) return;
+    const isSelected = STATE.selectedSlipIndex === slipIndex;
+    STATE.selectedSlipIndex = isSelected ? null : slipIndex;
+    document.querySelectorAll(".slipCard.isSelected").forEach((c) => c.classList.remove("isSelected"));
+    if (STATE.selectedSlipIndex != null) card.classList.add("isSelected");
+    renderMetrics(STATE.summary, parlays, STATE.selectedSlipIndex);
+  });
+
+  return card;
+}
+
+function renderSlipsSharedFooter(root, parlays, visibleCount, bettableOnly) {
   if (visibleCount === 0 && parlays.length > 0) {
     root.innerHTML =
-      '<div style="text-align:center;color:var(--textMuted);font-size:11px;">No bettable slips match your sportsbook bankrolls. Turn off the filter or add balances in Settings.</div>';
+      '<div style="text-align:center;color:var(--textMuted);font-size:11px;">No bettable slips match your sportsbook risk budgets. Turn off the filter or add risk budgets in Settings.</div>';
   }
 
-  // Restore selection highlight if one was selected
   if (STATE.selectedSlipIndex != null) {
     const sel = root.querySelector(`[data-slip-index="${STATE.selectedSlipIndex}"]`);
     if (sel) sel.classList.add("isSelected");
@@ -630,14 +664,147 @@ function renderSlips(parlays) {
     }
   }
 
-  // Update slips meta
-  const profile = STATE.profile;
   const metaLabel =
     bettableOnly && visibleCount < parlays.length
       ? `${visibleCount} of ${parlays.length} positions`
       : `${parlays.length} positions`;
   const meta = $("slipsMeta");
-  if (meta) meta.textContent = `${metaLabel} · ${profile.charAt(0).toUpperCase() + profile.slice(1)}`;
+  if (meta) meta.textContent = `${metaLabel} · ${getSlipFiltersMetaSuffix()}`;
+}
+
+function renderSlipsFlat(parlays) {
+  const root = $("slipsList");
+  root.innerHTML = "";
+
+  if (!parlays || !parlays.length) {
+    root.innerHTML = '<div style="text-align:center;color:var(--textMuted);font-size:11px;">No slips generated.</div>';
+    const hint = $("bettableFilterHint");
+    if (hint) hint.textContent = "";
+    const meta = $("slipsMeta");
+    if (meta) meta.textContent = `0 positions · ${getSlipFiltersMetaSuffix()}`;
+    return;
+  }
+
+  const bettableOnly = $("bettableOnlyToggle")?.checked;
+  if (bettableOnly && STATE.selectedSlipIndex != null) {
+    const selSlip = parlays[STATE.selectedSlipIndex];
+    if (selSlip && !isSlipBettable(selSlip)) {
+      STATE.selectedSlipIndex = null;
+      renderMetrics(STATE.summary, parlays, null);
+    }
+  }
+
+  const sorted = sortSlipsByEv(parlays);
+  let visibleCount = 0;
+  sorted.forEach((slip) => {
+    if (bettableOnly && !isSlipBettable(slip)) return;
+    const slipIndex = slipIndexInPortfolio(parlays, slip);
+    if (slipIndex < 0) return;
+    visibleCount++;
+    root.appendChild(buildSlipCard(slip, slipIndex, parlays));
+  });
+
+  renderSlipsSharedFooter(root, parlays, visibleCount, bettableOnly);
+}
+
+function renderBookSections(sections, parlays) {
+  const container = $("slipsList");
+  container.innerHTML = "";
+
+  if (!parlays || !parlays.length) {
+    container.innerHTML =
+      '<div style="text-align:center;color:var(--textMuted);font-size:11px;">No slips generated.</div>';
+    const hint = $("bettableFilterHint");
+    if (hint) hint.textContent = "";
+    const meta = $("slipsMeta");
+    if (meta) meta.textContent = `0 positions · ${getSlipFiltersMetaSuffix()}`;
+    return;
+  }
+
+  const bettableOnly = $("bettableOnlyToggle")?.checked;
+  if (bettableOnly && STATE.selectedSlipIndex != null) {
+    const selSlip = parlays[STATE.selectedSlipIndex];
+    if (selSlip && !isSlipBettable(selSlip)) {
+      STATE.selectedSlipIndex = null;
+      renderMetrics(STATE.summary, parlays, null);
+    }
+  }
+
+  let visibleCount = 0;
+  sections.forEach((section, secIdx) => {
+    const slips = Array.isArray(section.slips) ? section.slips : [];
+    const visibleSlips = slips.filter((slip) => !bettableOnly || isSlipBettable(slip));
+    const sortedSection = sortSlipsByEv(visibleSlips);
+
+    const header = document.createElement("div");
+    header.className = "bookSectionHeader";
+    const nameEl = document.createElement("span");
+    nameEl.className = "bookSectionName";
+    nameEl.textContent = section.book != null ? String(section.book) : "Unknown Book";
+    const countEl = document.createElement("span");
+    countEl.className = "bookSectionCount";
+    const totalInSection = section.num_slips != null ? section.num_slips : slips.length;
+    if (bettableOnly && visibleSlips.length !== slips.length) {
+      countEl.textContent = `${sortedSection.length} of ${totalInSection} slips`;
+    } else {
+      countEl.textContent = `${sortedSection.length} slip${sortedSection.length === 1 ? "" : "s"}`;
+    }
+    header.appendChild(nameEl);
+    header.appendChild(countEl);
+    container.appendChild(header);
+
+    sortedSection.forEach((slip) => {
+      const slipIndex = slipIndexInPortfolio(parlays, slip);
+      if (slipIndex < 0) return;
+      visibleCount++;
+      container.appendChild(buildSlipCard(slip, slipIndex, parlays));
+    });
+
+    if (secIdx < sections.length - 1) {
+      const divider = document.createElement("div");
+      divider.className = "bookSectionDivider";
+      container.appendChild(divider);
+    }
+  });
+
+  renderSlipsSharedFooter(container, parlays, visibleCount, bettableOnly);
+}
+
+function renderSlips(parlays) {
+  const root = $("slipsList");
+  if (!root) return;
+
+  const noResults = STATE.summary?.no_results === true;
+  const noResultsMsg =
+    STATE.summary?.message || "Try lowering the Min Hit Prob or Min Parlay EV sliders.";
+
+  if (noResults || !parlays?.length) {
+    STATE.bookSections = null;
+    root.innerHTML = `
+      <div class="emptyState">
+        <div class="emptyStateIcon">📭</div>
+        <div class="emptyStateTitle">No slips found</div>
+        <div class="emptyStateMsg"></div>
+        <div class="emptyStateHint">Recommended defaults: Min Hit Prob 12% · Min Parlay EV 20%</div>
+      </div>
+    `;
+    const msgEl = root.querySelector(".emptyStateMsg");
+    if (msgEl) msgEl.textContent = noResultsMsg;
+    const hint = $("bettableFilterHint");
+    if (hint) hint.textContent = "";
+    const meta = $("slipsMeta");
+    if (meta) meta.textContent = `0 positions · ${getSlipFiltersMetaSuffix()}`;
+    return;
+  }
+
+  root.innerHTML = "";
+
+  if (STATE.bookSections && STATE.bookSections.length > 0) {
+    renderBookSections(STATE.bookSections, parlays);
+    return;
+  }
+
+  renderSlipsFlat(parlays);
 }
 
 // ============================================================
@@ -668,42 +835,56 @@ function getLegCountFromUi() {
   } else {
     legCount = Math.max(2, Math.min(15, STATE.legsPerSlip || 3));
   }
-  console.log("legCount from UI:", legCount);
   return legCount;
 }
 
-function profileToSettings(profile) {
-  // Map risk_profile string to UserSettings object (backend schema)
-  // Leg count comes from #legCount (not hardcoded); stable allows min = legCount - 1 for a small range
+/** Recommended baseline for slip filter sliders (matches HTML defaults). */
+const SLIDER_RECOMMENDED_HIT = 12;
+const SLIDER_RECOMMENDED_PARLAY_EV = 20;
+const SLIDER_MIN_HIT_MAX = 40;
+const SLIDER_MIN_PARLAY_EV_MAX = 150;
+
+/** Shown next to slip counts — reflects Min Hit Prob / Min Parlay EV sliders. */
+function getSlipFiltersMetaSuffix() {
+  const h = $("minHitProb");
+  const e = $("minParlayEv");
+  const hp =
+    h && !Number.isNaN(parseInt(String(h.value), 10))
+      ? parseInt(String(h.value), 10)
+      : SLIDER_RECOMMENDED_HIT;
+  const ev =
+    e && !Number.isNaN(parseInt(String(e.value), 10))
+      ? parseInt(String(e.value), 10)
+      : SLIDER_RECOMMENDED_PARLAY_EV;
+  return `${hp}% min hit · ${ev}% min EV`;
+}
+
+function buildGenerationSettings() {
   const legCount = getLegCountFromUi();
   STATE.legsPerSlip = legCount;
-  const parlay_legs_max = legCount;
-  const parlay_legs_min = profile === "stable" ? Math.max(2, legCount - 1) : legCount;
-  const settings = {
+  const minHitEl = $("minHitProb");
+  const minEvEl = $("minParlayEv");
+  const minHitPct = minHitEl
+    ? Math.max(1, Math.min(SLIDER_MIN_HIT_MAX, parseInt(String(minHitEl.value), 10) || SLIDER_RECOMMENDED_HIT))
+    : SLIDER_RECOMMENDED_HIT;
+  const minEvPct = minEvEl
+    ? Math.max(
+        5,
+        Math.min(SLIDER_MIN_PARLAY_EV_MAX, parseInt(String(minEvEl.value), 10) || SLIDER_RECOMMENDED_PARLAY_EV),
+      )
+    : SLIDER_RECOMMENDED_PARLAY_EV;
+  const bookBankrolls = STATE.bookBankrolls || {};
+  return {
     min_ev_pct: 1.0,
     max_staleness_mins: 20,
-    num_slips: 5,
-    legs_per_slip: legCount,
-    parlay_legs_min,
-    parlay_legs_max,
+    parlay_legs_min: legCount,
+    parlay_legs_max: legCount,
+    min_hit_prob: minHitPct / 100,
+    min_parlay_ev: minEvPct / 100,
     bankroll: STATE.bankroll,
     risk_per_session_pct: (STATE.riskPerSession != null ? STATE.riskPerSession : 8) / 100,
+    ...(Object.keys(bookBankrolls).length > 0 ? { book_bankrolls: { ...bookBankrolls } } : {}),
   };
-
-  // Adjust by risk profile (example configurations)
-  if (profile === "stable") {
-    settings.num_slips = 3;
-    settings.min_ev_pct = 1.5;
-  } else if (profile === "growth") {
-    settings.num_slips = 5;
-    settings.min_ev_pct = 1.0;
-  } else if (profile === "upside") {
-    settings.num_slips = 8;
-    settings.min_ev_pct = 0.5;
-  }
-
-  console.log("profileToSettings output:", JSON.stringify(settings));
-  return settings;
 }
 
 /** Keep in sync with content.js normalizeRawLegDefaults + isRawLegValidForBackend. */
@@ -771,8 +952,16 @@ async function onGenerate() {
   try {
     console.log("[PUFF] Legs after capture:", STATE.legs.length, STATE.legs);
     syncBankrollFromInput();
-    const profile = STATE.profile;
-    const settings = profileToSettings(profile);
+    if (!saveBankrolls(false)) {
+      hintEl.textContent = "Enter valid sportsbook risk budget amounts (or leave blank / Save after fixing).";
+      hintEl.classList.add("hint--warn");
+      btn.disabled = false;
+      btn.textContent = "+ Generate Portfolio";
+      if (overlay) overlay.classList.add("hidden");
+      return;
+    }
+    Object.keys(pendingBankrolls).forEach((k) => delete pendingBankrolls[k]);
+    const settings = buildGenerationSettings();
     const legs = (STATE.legs || []).map((leg) => {
       const side = (leg.side || "other").toString().toLowerCase();
       const validSide = ["over", "under", "yes", "no", "home", "away"].includes(side) ? side : "other";
@@ -793,7 +982,7 @@ async function onGenerate() {
     if (validLegs.length === 0) {
       console.warn("[PUFF] All legs failed validation; skipping backend call.");
       hintEl.textContent =
-        "No slips could be generated from the captured legs. Try capturing more legs or adjusting your risk profile.";
+        "No slips could be generated from the captured legs. Try capturing more legs or loosening Min Hit Prob / Min Parlay EV.";
       hintEl.classList.add("hint--warn");
       STATE.parlays = [];
       window.__puffLastParlays = [];
@@ -805,15 +994,10 @@ async function onGenerate() {
       return;
     }
 
-    const risk_profile = profile === "upside" ? "high_upside" : profile;
     const payload = {
       legs: validLegs,
-      risk_profile,
       settings,
     };
-    console.log("[PUFF] Sending to backend:", payload);
-    console.log("sending to backend:", JSON.stringify(payload));
-
     const resp = await fetch(`${STATE.backendUrl}/v1/parlays/suggest`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -830,36 +1014,76 @@ async function onGenerate() {
 
     const response = await resp.json();
     console.log("[PUFF] Backend response:", response);
-    const parlays = response.parlays || [];
-    if (!parlays.length) {
+    const allParlays = Array.isArray(response.parlays) ? response.parlays : [];
+    const rawBookSections = response.book_sections;
+    STATE.bookSections =
+      allParlays.length > 0 && Array.isArray(rawBookSections) && rawBookSections.length > 0
+        ? rawBookSections
+        : null;
+    if (!allParlays.length) {
+      STATE.bookSections = null;
       console.warn("[PUFF] Backend returned empty portfolio");
-      hintEl.textContent =
-        "No slips could be generated from the captured legs. Try capturing more legs or adjusting your risk profile.";
+      const emptyMsg =
+        response.summary?.no_results === true
+          ? response.summary?.message ||
+            "Try lowering the Min Hit Prob or Min Parlay EV sliders."
+          : "No slips could be generated from the captured legs. Try capturing more legs or loosening Min Hit Prob / Min Parlay EV.";
+      hintEl.textContent = emptyMsg;
       hintEl.classList.add("hint--warn");
     } else {
       hintEl.classList.remove("hint--warn");
-      hintEl.textContent = `Generated ${parlays.length} slips.`;
+      hintEl.textContent = `Generated ${allParlays.length} slips.`;
     }
 
-    STATE.parlays = parlays;
-    window.__puffLastParlays = parlays;
+    STATE.parlays = allParlays;
+    // Log Stats / exports: full flat list from API — not derived from book_sections.
+    window.__puffLastParlays = allParlays;
     STATE.summary = response.summary || null;
     STATE.selectedSlipIndex = null;
 
     chrome.storage.local.set({
       puff_lastPortfolio: {
-        parlays,
+        parlays: allParlays,
+        book_sections: STATE.bookSections,
         generatedAt: Date.now(),
-        profile,
+        minHitProb: parseFloat(String($("minHitProb")?.value ?? String(SLIDER_RECOMMENDED_HIT))),
+        minParlayEv: parseFloat(String($("minParlayEv")?.value ?? String(SLIDER_RECOMMENDED_PARLAY_EV))),
       },
     });
 
-    renderSlips(parlays);
-    renderMetrics(response.summary, parlays, null);
+    renderSlips(allParlays);
+    renderMetrics(response.summary, allParlays, null);
     renderWarnings(response.summary?.warnings);
-  } catch (e) {
-    console.error("[PUFF] Generate Portfolio error:", e);
-    alert(`Failed to generate: ${String(e)}\nBackend URL: ${STATE.backendUrl}\nMake sure the backend is running and reachable.`);
+  } catch (err) {
+    console.error("[PUFF] Generate Portfolio error:", err);
+
+    STATE.parlays = [];
+    window.__puffLastParlays = [];
+    STATE.bookSections = null;
+    STATE.summary = null;
+    STATE.selectedSlipIndex = null;
+    if (hintEl) {
+      hintEl.classList.add("hint--warn");
+      hintEl.textContent = `Generation failed — ${String(err?.message || err)}`;
+    }
+    const bettableHint = $("bettableFilterHint");
+    if (bettableHint) bettableHint.textContent = "";
+    const meta = $("slipsMeta");
+    if (meta) meta.textContent = `0 positions · ${getSlipFiltersMetaSuffix()}`;
+
+    const container = document.getElementById("slipsList");
+    if (container) {
+      container.innerHTML = `
+      <div class="emptyState">
+        <div class="emptyStateIcon">⚠️</div>
+        <div class="emptyStateTitle">Generation failed</div>
+        <div class="emptyStateMsg">Try lowering the Min Hit Prob or Min Parlay EV sliders, or capture more legs.</div>
+        <div class="emptyStateHint">Recommended defaults: Min Hit Prob 12% · Min Parlay EV 20%</div>
+      </div>
+    `;
+    }
+    renderMetrics(null, [], null);
+    renderWarnings(null);
   } finally {
     btn.disabled = false;
     btn.textContent = "+ Generate Portfolio";
@@ -1019,7 +1243,7 @@ async function onCapture() {
     await new Promise((r) => setTimeout(r, 150));
     const resp = await sendMessageWithInject(tab.id, { type: "CAPTURE_WHOLE_PAGE" });
     if (!resp || !resp.ok) {
-      updateCaptureStatus(`Failed: ${resp?.error || ""}`);
+      updateCaptureStatus(resp?.error || "Capture failed.");
       return;
     }
 
@@ -1457,8 +1681,10 @@ function renderBuilderSuggestion() {
   if (!section || !textEl) return;
   if (legs.length === 0) { section.classList.add("hidden"); return; }
   const slip = { legs, est_ev_score: computeBuilderParlay(legs).evPct };
-  const quality = getSlipQuality(slip);
-  if (quality !== "bad") { section.classList.add("hidden"); return; }
+  if (getEvTier(slip) !== "low") {
+    section.classList.add("hidden");
+    return;
+  }
   section.classList.remove("hidden");
   const hitPct = computeSlipHitProb(slip);
   const evScore = slip.est_ev_score != null ? slip.est_ev_score : 0;
@@ -1636,8 +1862,11 @@ function renderSlipEditor() {
     if (leg) {
       const sideLabel = leg.side && leg.side !== "other" ? ` ${leg.side}` : "";
       const label = `${leg.participant || "?"} ${leg.market || "?"}${sideLabel}${leg.line != null ? " " + leg.line : ""} @ ${leg.odds_american ?? leg.odds ?? "?"}`;
-      pill.innerHTML = `<span class="slipEditorLegLabel">${label}</span><button class="slipEditorLegRemove" data-slot="${i}" aria-label="Remove">×</button>`;
-      pill.querySelector(".slipEditorLegRemove").addEventListener("click", () => removeSlipEditorLeg(i));
+      pill.innerHTML = `<label class="slipEditorLegPick"><input type="checkbox" class="slipEditorLegRemoveCb" data-slot="${i}" title="Remove leg from slip" aria-label="Remove leg from slip" /><span class="slipEditorLegLabel">${escapeHtml(label)}</span></label>`;
+      const cb = pill.querySelector(".slipEditorLegRemoveCb");
+      cb.addEventListener("change", () => {
+        if (cb.checked) removeSlipEditorLeg(i);
+      });
     } else {
       pill.innerHTML = `<span class="slipEditorGhostLabel">Empty slot</span>`;
     }
@@ -1692,7 +1921,7 @@ function renderSlipEditor() {
 
 const ONBOARDING_STEPS = [
   { target: "portfolioSection", text: "1. Capture — Open an optimizer page (e.g. OddsJam), then click Capture to scan props.", arrow: "top" },
-  { target: "riskSegment", text: "2. Risk Profile — Pick Stable, Growth, or Upside to tune how aggressive the portfolio is.", arrow: "top" },
+  { target: "sliderSection", text: "2. Slip filters — Set minimum combined hit probability and parlay EV; Generate applies them after the engine runs.", arrow: "top" },
   { target: "btnGenerate", text: "3. Generate — Click to build optimized parlays from your captured legs.", arrow: "top" },
   { target: "slipsSection", text: "4. Results — Review slips, metrics, and click Edit to refine any slip.", arrow: "top" },
 ];
@@ -1812,6 +2041,28 @@ function escHtmlBankroll(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 }
 
+function attachBankrollIntegerInputHandlers(input) {
+  if (!input) return;
+  input.type = "number";
+  input.min = "0";
+  input.step = "1";
+  input.addEventListener("keydown", (e) => {
+    if (["-", "+", ".", "e", "E"].includes(e.key)) {
+      e.preventDefault();
+    }
+  });
+}
+
+function rebuildSelectedBooksFromStorage(res) {
+  selectedBooks.clear();
+  const list = res?.puff_bankrollSelectedBooks;
+  if (Array.isArray(list) && list.length) {
+    list.forEach((b) => selectedBooks.add(b));
+  } else {
+    Object.keys(STATE.bookBankrolls || {}).forEach((b) => selectedBooks.add(b));
+  }
+}
+
 function renderBankrollBookList() {
   const legs = STATE.cachedLegs || [];
   const books = [
@@ -1827,55 +2078,130 @@ function renderBankrollBookList() {
     return;
   }
 
+  Array.from(selectedBooks).forEach((b) => {
+    if (!books.includes(b)) selectedBooks.delete(b);
+  });
+
   container.innerHTML = books
     .map((book) => {
       const a = escAttrBankroll(book);
       const h = escHtmlBankroll(book);
-      const checked = saved[book] != null ? "checked" : "";
-      const hidden = saved[book] == null ? "hidden" : "";
-      const val = saved[book] != null && saved[book] !== "" ? String(saved[book]) : "";
+      const isSel = selectedBooks.has(book);
+      const checked = isSel ? "checked" : "";
+      const hidden = isSel ? "" : "hidden";
+      const rowSel = isSel ? " selected" : "";
+      const val =
+        Object.prototype.hasOwnProperty.call(pendingBankrolls, book)
+          ? String(pendingBankrolls[book])
+          : saved[book] != null && saved[book] !== ""
+            ? String(saved[book])
+            : "";
       return `
-    <div class="bankrollBookRow">
+    <div class="bankrollBookRow${rowSel}" data-book="${a}">
       <label class="bankrollBookLabel">
         <input type="checkbox" class="bankrollBookCheck" data-book="${a}" ${checked}>
         <span class="bankrollBookName">${h}</span>
       </label>
-      <div class="bankrollInputWrapper ${hidden}">
-        <span class="bankrollDollar">$</span>
-        <input type="number" class="bankrollInput" data-book="${a}"
-          min="0" step="1" placeholder="0" value="${val}">
+      <div class="bankrollBookRight">
+        <div class="bankrollInputWrapper ${hidden}">
+          <span class="bankrollDollar">$</span>
+          <input type="number" class="bankrollInput" data-book="${a}"
+            min="0" step="1" placeholder="0" value="${val}">
+        </div>
       </div>
     </div>`;
     })
     .join("");
 
+  const firstRight = container.querySelector(".bankrollBookRight");
+  if (firstRight) {
+    const hint = document.createElement("div");
+    hint.style.cssText = "font-size:10px;color:rgba(255,255,255,0.35);margin-top:3px;";
+    hint.textContent = "How much you want to risk across your slips this session";
+    firstRight.appendChild(hint);
+  }
+
   container.querySelectorAll(".bankrollBookCheck").forEach((cb) => {
     cb.addEventListener("change", () => {
-      const wrapper = cb.closest(".bankrollBookRow")?.querySelector(".bankrollInputWrapper");
-      if (wrapper) wrapper.classList.toggle("hidden", !cb.checked);
-      if (!cb.checked) {
-        const book = cb.dataset.book;
-        if (book) {
+      const book = cb.dataset.book;
+      const row = cb.closest(".bankrollBookRow");
+      const wrapper = row?.querySelector(".bankrollInputWrapper");
+      if (book) {
+        if (cb.checked) selectedBooks.add(book);
+        else {
+          selectedBooks.delete(book);
           STATE.bookBankrolls = STATE.bookBankrolls || {};
           delete STATE.bookBankrolls[book];
+          delete pendingBankrolls[book];
         }
       }
-      saveBankrolls();
+      if (row) row.classList.toggle("selected", !!cb.checked);
+      if (wrapper) wrapper.classList.toggle("hidden", !cb.checked);
+      saveBankrolls(true);
       updateBankrollTotal();
     });
   });
 
   container.querySelectorAll(".bankrollInput").forEach((input) => {
+    const book = input.dataset.book;
+    if (!book) return;
+    attachBankrollIntegerInputHandlers(input);
     input.addEventListener("input", () => {
-      saveBankrolls();
+      const digits = input.value.replace(/[^0-9]/g, "");
+      input.value = digits;
+      if (digits === "") {
+        delete pendingBankrolls[book];
+      } else {
+        pendingBankrolls[book] = parseInt(digits, 10) || 0;
+      }
+      input.style.borderColor = "";
+      input.parentElement?.querySelector(".bankrollError")?.remove();
       updateBankrollTotal();
     });
+    const persistBookBankroll = () => {
+      saveBankrolls(true);
+      delete pendingBankrolls[book];
+    };
+    input.addEventListener("change", persistBookBankroll);
+    input.addEventListener("blur", persistBookBankroll);
   });
 
   updateBankrollTotal();
 }
 
-function saveBankrolls() {
+function validateBankrollInputs() {
+  const inputs = document.querySelectorAll("#bankrollBookList .bankrollInput");
+  let valid = true;
+
+  inputs.forEach((inp) => {
+    const val = inp.value.trim();
+    const num = parseFloat(val);
+
+    inp.style.borderColor = "";
+    const wrapper = inp.parentElement;
+    const existingError = wrapper?.querySelector(".bankrollError");
+    if (existingError) existingError.remove();
+
+    if (val === "" || val === "0") return;
+
+    if (Number.isNaN(num) || num < 0) {
+      inp.style.borderColor = "rgba(255,80,80,0.8)";
+      const error = document.createElement("span");
+      error.className = "bankrollError";
+      error.style.cssText = "color:rgba(255,100,100,0.9);font-size:10px;margin-left:6px;";
+      error.textContent = "Enter a valid amount";
+      if (wrapper) wrapper.appendChild(error);
+      valid = false;
+    }
+  });
+
+  return valid;
+}
+
+/** @param {boolean} [skipValidation=true] Set false for Save / generate so invalid amounts block persist. */
+function saveBankrolls(skipValidation = true) {
+  if (!skipValidation && !validateBankrollInputs()) return false;
+
   const result = {};
   document.querySelectorAll("#bankrollBookList .bankrollBookCheck:checked").forEach((cb) => {
     const book = cb.dataset.book;
@@ -1886,39 +2212,70 @@ function saveBankrolls() {
   });
   STATE.bookBankrolls = result;
 
+  if (!skipValidation) {
+    const warning = document.getElementById("bankrollWarning");
+    if (warning) {
+      const highBudget = Object.values(result).some((v) => v > 500);
+      if (highBudget) {
+        warning.textContent = "⚠️ Large risk budget — make sure this is intentional.";
+        warning.style.display = "block";
+      } else {
+        warning.style.display = "none";
+      }
+    }
+  }
+
   const midnight = new Date();
   midnight.setHours(24, 0, 0, 0);
   chrome.storage.local.set({
     puff_bookBankrolls: result,
+    puff_bankrollSelectedBooks: Array.from(selectedBooks),
     puff_bankrollExpiry: midnight.getTime(),
   });
+  return true;
 }
 
 function updateBankrollTotal() {
-  const total = Object.values(STATE.bookBankrolls || {}).reduce((s, v) => s + v, 0);
+  let total = 0;
+  document.querySelectorAll("#bankrollBookList .bankrollBookCheck:checked").forEach((cb) => {
+    const inp = cb.closest(".bankrollBookRow")?.querySelector(".bankrollInput");
+    if (!inp) return;
+    const val = parseFloat(inp.value) || 0;
+    if (val > 0) total += val;
+  });
   const el = document.getElementById("bankrollTotalAmount");
   if (el) el.textContent = `$${total.toFixed(0)}`;
 }
 
 function loadBankrolls() {
   return new Promise((resolve) => {
-    chrome.storage.local.get(["puff_bookBankrolls", "puff_bankrollExpiry", "puff_cachedLegs"], (res) => {
-      STATE.cachedLegs = res.puff_cachedLegs || [];
-      const expiry = res.puff_bankrollExpiry || 0;
-      if (expiry > 0 && Date.now() > expiry) {
-        STATE.bookBankrolls = {};
-        chrome.storage.local.remove(["puff_bookBankrolls", "puff_bankrollExpiry"], () => {
+    chrome.storage.local.get(
+      ["puff_bookBankrolls", "puff_bankrollExpiry", "puff_cachedLegs", "puff_bankrollSelectedBooks"],
+      (res) => {
+        STATE.cachedLegs = res.puff_cachedLegs || [];
+        const expiry = res.puff_bankrollExpiry || 0;
+        if (expiry > 0 && Date.now() > expiry) {
+          STATE.bookBankrolls = {};
+          selectedBooks.clear();
+          Object.keys(pendingBankrolls).forEach((k) => delete pendingBankrolls[k]);
+          chrome.storage.local.remove(
+            ["puff_bookBankrolls", "puff_bankrollExpiry", "puff_bankrollSelectedBooks"],
+            () => {
+              renderBankrollBookList();
+              updateBankrollTotal();
+              resolve();
+            }
+          );
+        } else {
+          STATE.bookBankrolls = res.puff_bookBankrolls || {};
+          rebuildSelectedBooksFromStorage(res);
+          Object.keys(pendingBankrolls).forEach((k) => delete pendingBankrolls[k]);
           renderBankrollBookList();
           updateBankrollTotal();
           resolve();
-        });
-      } else {
-        STATE.bookBankrolls = res.puff_bookBankrolls || {};
-        renderBankrollBookList();
-        updateBankrollTotal();
-        resolve();
+        }
       }
-    });
+    );
   });
 }
 
@@ -1930,7 +2287,6 @@ async function refreshBookBankrollsFromStorage() {
   }
 }
 
-/** Temporary: log slip quality stats to console (uses window.__puffLastParlays). */
 function initExportSlipStatsButton() {
   const label = document.querySelector("#slipsSection .slipsHeader .label");
   if (!label || document.getElementById("btnExportSlipStats")) return;
@@ -1941,25 +2297,51 @@ function initExportSlipStatsButton() {
   exportBtn.style.cssText =
     "font-size:11px;padding:3px 8px;background:rgba(124,99,255,0.3);color:#fff;border:none;border-radius:4px;cursor:pointer;margin-left:8px;";
   exportBtn.onclick = () => {
-    const parlays = window.__puffLastParlays || [];
-    console.log(`=== PUFF Portfolio Stats (${parlays.length} slips) ===`);
-    parlays.forEach((slip, i) => {
-      const legs = slip.legs || [];
-      const avgEv =
-        legs.length > 0 ? legs.reduce((s, l) => s + (l.ev_pct || l.ev || 0), 0) / legs.length : 0;
-      const combinedHit =
-        legs.reduce((p, l) => p * ((l.hit_prob_pct || l.hit_prob || 50) / 100), 1) * 100;
-      const odds = legs.reduce((p, l) => {
-        const o = l.odds_american || l.odds || 0;
-        if (!o) return p;
-        return p * (o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o));
-      }, 1);
-      const parlayEv = (combinedHit / 100) * odds - 1;
-      const parlayEvPct = parlayEv * 100;
-      const q = avgEv >= 5 && combinedHit >= 15 ? "🟢" : avgEv >= 2 && combinedHit >= 8 ? "🟡" : "🔴";
-      console.log(
-        `${q} #${i + 1} AvgEV=${avgEv.toFixed(1)}% Hit=${combinedHit.toFixed(1)}% ParlayEV=${parlayEvPct.toFixed(1)}% Payout=${odds.toFixed(1)}x | ${legs.map((l) => (l.participant || "").substring(0, 12)).join(" · ")}`
-      );
+    const parlays =
+      Array.isArray(window.__puffLastParlays) && window.__puffLastParlays.length > 0
+        ? window.__puffLastParlays
+        : Array.isArray(STATE.parlays)
+          ? STATE.parlays
+          : [];
+    const byBook = {};
+    parlays.forEach((slip) => {
+      const book = slip.legs?.[0]?.book || "Unknown";
+      if (!byBook[book]) byBook[book] = [];
+      byBook[book].push(slip);
+    });
+
+    console.log(
+      `\n=== PUFF Portfolio Stats (${parlays.length} slips across ${Object.keys(byBook).length} books) ===`
+    );
+
+    let globalSlipNum = 0;
+    Object.entries(byBook).forEach(([book, bookSlips]) => {
+      // After per-book generation, each slip here should match the section book (no ⚠️ MIXED on lines below).
+      console.log(`\n📚 ${book} (${bookSlips.length} slips)`);
+      bookSlips.forEach((slip) => {
+        globalSlipNum += 1;
+        const legs = slip.legs || [];
+        const primaryBook = legs[0]?.book || "Unknown";
+        const uniqueBooks = [...new Set(legs.map((l) => l.book).filter(Boolean))];
+        const bookDisplay =
+          uniqueBooks.length <= 1 ? uniqueBooks[0] || primaryBook : `⚠️ MIXED(${uniqueBooks.join("+")})`;
+        const avgEv =
+          legs.length > 0 ? legs.reduce((s, l) => s + (l.ev_pct || l.ev || 0), 0) / legs.length : 0;
+        const combinedHit =
+          legs.reduce((p, l) => p * ((l.hit_prob_pct || l.hit_prob || 50) / 100), 1) * 100;
+        const odds = legs.reduce((p, l) => {
+          const o = l.odds_american || l.odds || 0;
+          if (!o) return p;
+          return p * (o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o));
+        }, 1);
+        const parlayEvPct = ((combinedHit / 100) * odds - 1) * 100;
+        const evTier = getEvTier(slip);
+        const riskTier = getRiskTier(slip);
+        const tierIcon = evTier === "strong" ? "🟢" : evTier === "moderate" ? "🟡" : "🔴";
+        console.log(
+          `${tierIcon} #${globalSlipNum} [${evTier}/${riskTier}] AvgEV=${avgEv.toFixed(1)}% Hit=${combinedHit.toFixed(1)}% ParlayEV=${parlayEvPct.toFixed(1)}% Payout=${odds.toFixed(1)}x | ${bookDisplay} | ${legs.map((l) => (l.participant || "").substring(0, 12)).join(" · ")}`
+        );
+      });
     });
   };
   label.after(exportBtn);
@@ -1987,8 +2369,31 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   await loadBankrolls();
 
+  const bankrollListEl = document.getElementById("bankrollBookList");
+  if (bankrollListEl && !bankrollListEl.dataset.puffRowClickBound) {
+    bankrollListEl.dataset.puffRowClickBound = "1";
+    bankrollListEl.addEventListener("click", (e) => {
+      const row = e.target.closest(".bankrollBookRow");
+      if (!row || !bankrollListEl.contains(row)) return;
+      const book = row.dataset.book;
+      if (!book) return;
+      if (e.target.tagName === "INPUT") return;
+      if (e.target.closest(".bankrollBookLabel")) return;
+      const cb = row.querySelector(".bankrollBookCheck");
+      if (!cb) return;
+      cb.checked = !cb.checked;
+      cb.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
+
+  $("btnSaveBankrolls")?.addEventListener("click", () => {
+    if (!saveBankrolls(false)) return;
+    Object.keys(pendingBankrolls).forEach((k) => delete pendingBankrolls[k]);
+  });
+
   const bankrollInput = $("bankrollInput");
   if (bankrollInput) {
+    attachBankrollIntegerInputHandlers(bankrollInput);
     if (STATE.bankroll != null && Number.isFinite(Number(STATE.bankroll))) {
       bankrollInput.value = String(STATE.bankroll);
     }
@@ -2006,6 +2411,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Listen for selection completion from content script
   chrome.runtime.onMessage.addListener((msg) => {
+    if (msg?.type === "CAPTURE_RESULT") {
+      if (msg.error) updateCaptureStatus(msg.error);
+      STATE.legs = Array.isArray(msg.legs) ? msg.legs : [];
+      STATE.cachedLegs = STATE.legs.slice();
+      renderBankrollBookList();
+      return;
+    }
     if (msg?.type === "AREA_SELECTED") {
       // Legs were auto-captured; refresh to show count (popup may have reopened)
       getActiveTab().then((tab) => {
@@ -2028,17 +2440,55 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // Risk Profile pills — switching mode triggers fresh portfolio generation and full UI refresh
-  document.querySelectorAll(".segBtn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const newProfile = btn.getAttribute("data-profile");
-      if (STATE.profile === newProfile) return;
-      document.querySelectorAll(".segBtn").forEach((b) => b.classList.remove("isActive"));
-      btn.classList.add("isActive");
-      STATE.profile = newProfile;
-      if (STATE.legs && STATE.legs.length > 0) onGenerate();
+  const minHitProbEl = $("minHitProb");
+  const minHitProbValEl = $("minHitProbVal");
+  if (minHitProbEl && minHitProbValEl) {
+    minHitProbEl.value = String(SLIDER_RECOMMENDED_HIT);
+    minHitProbValEl.textContent = `${SLIDER_RECOMMENDED_HIT}%`;
+    minHitProbEl.addEventListener("input", (e) => {
+      minHitProbValEl.textContent = `${e.target.value}%`;
     });
-  });
+  }
+  const minParlayEvEl = $("minParlayEv");
+  const minParlayEvValEl = $("minParlayEvVal");
+  if (minParlayEvEl && minParlayEvValEl) {
+    minParlayEvEl.value = String(SLIDER_RECOMMENDED_PARLAY_EV);
+    minParlayEvValEl.textContent = `${SLIDER_RECOMMENDED_PARLAY_EV}%`;
+    minParlayEvEl.addEventListener("input", (e) => {
+      minParlayEvValEl.textContent = `${e.target.value}%`;
+    });
+  }
+
+  const sliderSectionEl = $("sliderSection");
+  if (sliderSectionEl && !sliderSectionEl.querySelector(".sliderReset")) {
+    const resetLink = document.createElement("div");
+    resetLink.className = "sliderReset";
+    resetLink.textContent = "Reset to recommended";
+    resetLink.setAttribute("role", "button");
+    resetLink.tabIndex = 0;
+    const applyRecommendedSliders = () => {
+      const hp = $("minHitProb");
+      const hVal = $("minHitProbVal");
+      const ev = $("minParlayEv");
+      const evVal = $("minParlayEvVal");
+      if (hp && hVal) {
+        hp.value = String(SLIDER_RECOMMENDED_HIT);
+        hVal.textContent = `${SLIDER_RECOMMENDED_HIT}%`;
+      }
+      if (ev && evVal) {
+        ev.value = String(SLIDER_RECOMMENDED_PARLAY_EV);
+        evVal.textContent = `${SLIDER_RECOMMENDED_PARLAY_EV}%`;
+      }
+    };
+    resetLink.addEventListener("click", applyRecommendedSliders);
+    resetLink.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        applyRecommendedSliders();
+      }
+    });
+    sliderSectionEl.appendChild(resetLink);
+  }
 
   // Leg Count input (Section 6: no hard cap, 2–15)
   $("legCount").addEventListener("input", (e) => {
@@ -2105,7 +2555,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
-    if (changes.puff_bookBankrolls || changes.puff_bankrollExpiry || changes.puff_cachedLegs) {
+    if (
+      changes.puff_bookBankrolls ||
+      changes.puff_bankrollExpiry ||
+      changes.puff_cachedLegs ||
+      changes.puff_bankrollSelectedBooks
+    ) {
       refreshBookBankrollsFromStorage();
     }
   });
