@@ -46,6 +46,28 @@ body {
   background: var(--bg0);
 }
 
+.puffToast {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  z-index: 10001;
+  padding: 10px 16px;
+  background: rgba(26, 29, 46, 0.96);
+  border: 1px solid rgba(185, 190, 255, 0.25);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+.puffToast--visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 /* Topbar */
 .topbar {
   display: flex;
@@ -1078,6 +1100,28 @@ section.card + section,
   font-size: 11px;
   color: var(--textSecondary);
   line-height: 1.4;
+}
+
+.slipLeg {
+  display: flex;
+  flex-direction: column;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.slipLeg:last-child {
+  border-bottom: none;
+}
+.slipLegMarket {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.35);
+  margin-bottom: 1px;
+}
+.slipLegDetail {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
 }
 
 .slipCardCapital {
@@ -2541,6 +2585,10 @@ section.metrics { margin-bottom: 12px; }
   background: var(--bg1);
   border-bottom: 1px solid var(--stroke);
 }
+.tabBar .tabBtn {
+  flex: 1;
+  min-width: 0;
+}
 .tabBtn {
   padding: 10px 16px;
   border: none;
@@ -2560,6 +2608,344 @@ section.metrics { margin-bottom: 12px; }
 }
 .tabPanel { padding: 12px; }
 .tabPanel.hidden { display: none !important; }
+
+/* ── My Bets Tab ──
+   Rules are scoped under #panelMyBets so .bankrollInput here does not override
+   Portfolio sportsbook row inputs (.bankrollBookList .bankrollInput). */
+#panelMyBets .sectionTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--textSecondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+#panelMyBets #bankrollCard {
+  margin-bottom: 12px;
+}
+
+#panelMyBets .bankrollHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+#panelMyBets .bankrollLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.45);
+}
+#panelMyBets .bankrollAmount {
+  font-size: 28px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.5px;
+}
+#panelMyBets .bankrollEditRow {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  align-items: center;
+}
+#panelMyBets .bankrollInput {
+  flex: 1;
+  min-width: 120px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: #fff;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+#panelMyBets .bankrollStats {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  align-items: center;
+}
+#panelMyBets .bankrollStat {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+}
+#panelMyBets .bankrollStatDivider {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+#panelMyBets .betCard {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+#panelMyBets .betCard--won {
+  border-color: rgba(80, 220, 120, 0.3);
+  background: rgba(80, 220, 120, 0.05);
+}
+#panelMyBets .betCard--lost {
+  border-color: rgba(255, 80, 80, 0.3);
+  background: rgba(255, 80, 80, 0.05);
+}
+#panelMyBets .betCardHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+#panelMyBets .betCardHeader .btnDeleteBet {
+  margin-left: auto;
+}
+.btnDeleteBet {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 4px;
+  line-height: 1;
+  transition: color 0.15s;
+}
+.btnDeleteBet:hover {
+  color: rgba(255, 80, 80, 0.7);
+}
+#panelMyBets .betCardBook {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+#panelMyBets .betCardStatus {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+}
+#panelMyBets .betCardLegs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+#panelMyBets .betCardLeg {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  padding: 2px 0;
+}
+#panelMyBets .betCardFooter {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+#panelMyBets .betCardStake {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+}
+#panelMyBets .betCardPayout {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(80, 220, 120, 0.9);
+}
+#panelMyBets .btnWon {
+  background: rgba(80, 220, 120, 0.15);
+  border: 1px solid rgba(80, 220, 120, 0.3);
+  color: rgba(80, 220, 120, 0.9);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+#panelMyBets .btnLost {
+  background: rgba(255, 80, 80, 0.12);
+  border: 1px solid rgba(255, 80, 80, 0.25);
+  color: rgba(255, 100, 100, 0.9);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+#panelMyBets .btnWon:hover {
+  background: rgba(80, 220, 120, 0.25);
+}
+#panelMyBets .btnLost:hover {
+  background: rgba(255, 80, 80, 0.22);
+}
+
+#panelMyBets #activeBetsList .emptyState {
+  padding: 24px 16px;
+}
+#panelMyBets #settledBetsCard {
+  margin-top: 12px;
+}
+
+.deleteBetModalBody {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 16px;
+  line-height: 1.45;
+}
+#deleteBetModal .modalActions .btnLost {
+  flex: 1;
+  background: rgba(255, 80, 80, 0.12);
+  border: 1px solid rgba(255, 80, 80, 0.25);
+  color: rgba(255, 100, 100, 0.9);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+#deleteBetModal .modalActions .btnLost:hover {
+  background: rgba(255, 80, 80, 0.22);
+}
+#deleteBetModal .modalActions .btnSecondary {
+  flex: 1;
+}
+
+/* ── Place Bet Modal ── */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modalOverlay.hidden {
+  display: none !important;
+}
+.modalCard {
+  background: #1a1d2e;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 20px;
+  width: 300px;
+  max-width: 90vw;
+}
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.modalTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+}
+.modalBook {
+  font-size: 12px;
+  color: rgba(185, 190, 255, 0.8);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.modalLegs {
+  margin-bottom: 10px;
+}
+.modalStats {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.modalStat {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+}
+.modalStatDivider {
+  color: rgba(255, 255, 255, 0.2);
+  font-size: 11px;
+}
+.modalStakeRow {
+  margin-bottom: 14px;
+}
+.modalLabel {
+  display: block;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+#placeBetModal .bankrollInput {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+
+.modalWarning {
+  background: rgba(255, 160, 50, 0.08);
+  border: 1px solid rgba(255, 160, 50, 0.25);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+.modalWarningTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 180, 60, 0.9);
+  margin-bottom: 6px;
+}
+.modalWarningBody {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+.modalWarningActions {
+  display: flex;
+  gap: 8px;
+}
+.modalWarningActions .btnWon {
+  flex: 1;
+  background: rgba(80, 220, 120, 0.15);
+  border: 1px solid rgba(80, 220, 120, 0.3);
+  color: rgba(80, 220, 120, 0.9);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.modalWarningActions .btnWon:hover {
+  background: rgba(80, 220, 120, 0.25);
+}
+.modalWarningActions .btnLost {
+  flex: 1;
+  background: rgba(255, 80, 80, 0.12);
+  border: 1px solid rgba(255, 80, 80, 0.25);
+  color: rgba(255, 100, 100, 0.9);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.modalWarningActions .btnLost:hover {
+  background: rgba(255, 80, 80, 0.22);
+}
+
+.modalActions {
+  display: flex;
+  gap: 8px;
+}
+.modalActions .btnPrimary {
+  flex: 1;
+}
+.btnPlaceBet {
+  background: rgba(185, 190, 255, 0.1);
+  border: 1px solid rgba(185, 190, 255, 0.2);
+  color: rgba(185, 190, 255, 0.8);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  margin-top: 8px;
+  width: 100%;
+  transition: background 0.15s;
+}
+.btnPlaceBet:hover {
+  background: rgba(185, 190, 255, 0.2);
+}
 
 .builderCard, .builderLegs, .builderStats {
   margin-bottom: 12px;

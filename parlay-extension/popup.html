@@ -57,6 +57,7 @@
       <div class="tabBar">
         <button id="tabPortfolioBtn" class="tabBtn isActive" data-tab="portfolio">Portfolio</button>
         <button id="tabBuilderBtn" class="tabBtn" data-tab="builder">Parlay Builder</button>
+        <button id="tabMyBetsBtn" class="tabBtn" data-tab="mybets">My Bets</button>
       </div>
 
       <!-- Portfolio tab content -->
@@ -96,7 +97,7 @@
         <div class="controlCard">
           <div class="label">Risk Budget ($)</div>
           <input
-            id="bankrollInput"
+            id="portfolioRiskBudgetInput"
             type="number"
             min="0"
             step="1"
@@ -396,6 +397,50 @@
         </section>
       </div><!-- /panelBuilder -->
 
+      <!-- My Bets tab (v1.5: bankroll, placement, settlement) -->
+      <div id="panelMyBets" class="tabPanel hidden">
+        <!-- Bankroll card -->
+        <section class="card" id="bankrollCard">
+          <div class="bankrollHeader">
+            <div class="bankrollLabel">Bankroll</div>
+            <button type="button" id="btnEditBankroll" class="iconBtn" title="Edit bankroll">✏️</button>
+          </div>
+          <div class="bankrollDisplay">
+            <span class="bankrollAmount" id="bankrollAmount">$0.00</span>
+          </div>
+          <div class="bankrollEditRow" id="bankrollEditRow" style="display:none;">
+            <input type="number" id="bankrollInput" class="bankrollInput" placeholder="Enter amount" min="0" step="0.01" />
+            <button type="button" id="btnSaveBankroll" class="btnPrimary">Save</button>
+            <button type="button" id="btnCancelBankroll" class="btnSecondary">Cancel</button>
+          </div>
+          <div class="bankrollStats" id="bankrollStats">
+            <span class="bankrollStat"><span id="statWins">0</span> W</span>
+            <span class="bankrollStatDivider">·</span>
+            <span class="bankrollStat"><span id="statLosses">0</span> L</span>
+            <span class="bankrollStatDivider">·</span>
+            <span class="bankrollStat">ROI <span id="statROI">0%</span></span>
+          </div>
+        </section>
+
+        <!-- Active bets -->
+        <section class="card" id="activeBetsCard">
+          <div class="sectionTitle">Active Bets</div>
+          <div id="activeBetsList">
+            <div class="emptyState" id="activeBetsEmpty">
+              <div class="emptyStateIcon">🎯</div>
+              <div class="emptyStateTitle">No active bets</div>
+              <div class="emptyStateMsg">Place a slip from the Portfolio tab to track it here.</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Settled bets -->
+        <section class="card" id="settledBetsCard" style="display:none;">
+          <div class="sectionTitle">History</div>
+          <div id="settledBetsList"></div>
+        </section>
+      </div>
+
       <!-- Section 9: Onboarding tour overlay -->
       <div id="onboardingOverlay" class="onboardingOverlay hidden">
         <div class="onboardingBackdrop"></div>
@@ -409,6 +454,51 @@
               <button id="onboardingPrev" class="btnSecondary" disabled>← Back</button>
               <button id="onboardingNext" class="btnPrimary">Next →</button>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Place Bet Modal -->
+      <div id="placeBetModal" class="modalOverlay hidden" aria-hidden="true">
+        <div class="modalCard" role="dialog" aria-labelledby="placeBetModalTitle">
+          <div class="modalHeader">
+            <div class="modalTitle" id="placeBetModalTitle">Place Bet</div>
+            <button type="button" id="btnCloseModal" class="iconBtn" aria-label="Close">✕</button>
+          </div>
+          <div class="modalBook" id="modalBook"></div>
+          <div class="modalLegs" id="modalLegs"></div>
+          <div class="modalStats" id="modalStats"></div>
+          <div class="modalStakeRow">
+            <label class="modalLabel" for="modalStakeInput">Stake ($)</label>
+            <input type="number" id="modalStakeInput" class="bankrollInput" placeholder="10.00" min="0.01" step="0.01" />
+          </div>
+          <div id="modalWarning" class="modalWarning" style="display: none;">
+            <div class="modalWarningTitle">⚠️ Same-game conflict</div>
+            <div class="modalWarningBody" id="modalWarningBody"></div>
+            <div class="modalWarningActions">
+              <button type="button" id="btnWarningProceed" class="btnWon">Place anyway</button>
+              <button type="button" id="btnWarningCancel" class="btnLost">Cancel</button>
+            </div>
+          </div>
+          <div class="modalActions">
+            <button type="button" id="btnConfirmBet" class="btnPrimary">Confirm Bet</button>
+            <button type="button" id="btnCancelModal" class="btnSecondary">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Delete Bet confirmation -->
+      <div id="deleteBetModal" class="modalOverlay hidden" aria-hidden="true">
+        <div class="modalCard" role="dialog" aria-labelledby="deleteBetModalTitle">
+          <div class="modalHeader">
+            <div class="modalTitle" id="deleteBetModalTitle">Delete Bet?</div>
+          </div>
+          <div class="modalBody deleteBetModalBody">
+            This will permanently remove the bet from your history. If it was pending, your stake will be refunded to your bankroll.
+          </div>
+          <div class="modalActions">
+            <button type="button" id="btnConfirmDelete" class="btnLost">Delete</button>
+            <button type="button" id="btnCancelDelete" class="btnSecondary">Cancel</button>
           </div>
         </div>
       </div>

@@ -48,6 +48,20 @@ function pct(val) {
   return sign + Number(val).toFixed(1) + "%";
 }
 
+function showToast(message) {
+  document.querySelector(".puffToast")?.remove();
+  const t = document.createElement("div");
+  t.className = "puffToast";
+  t.textContent = message;
+  t.setAttribute("role", "status");
+  document.body.appendChild(t);
+  requestAnimationFrame(() => t.classList.add("puffToast--visible"));
+  setTimeout(() => {
+    t.classList.remove("puffToast--visible");
+    setTimeout(() => t.remove(), 200);
+  }, 2400);
+}
+
 function slipTitleFromLegs(legs) {
   // Compact title: strip line/side from participant, then truncate (avoid "Cole Young O")
   if (!legs || !legs.length) return "Slip";
@@ -579,15 +593,18 @@ function buildSlipCard(slip, slipIndex, parlays) {
       </div>
     `;
 
-  const legsText = slip.legs
-    .map((l) => {
-      const legLabel = `${l.market}: ${l.participant}`;
-      return legLabel;
-    })
-    .join(", ");
+  const legsHtml = (slip.legs || [])
+    .map(
+      (leg) => `
+  <div class="slipLeg">
+    <span class="slipLegMarket">${escHtmlBankroll(leg.market || "")}</span>
+    <span class="slipLegDetail">${escHtmlBankroll(leg.participant || "")}</span>
+  </div>`
+    )
+    .join("");
   const legs = document.createElement("div");
   legs.className = "slipCardLegs";
-  legs.textContent = legsText;
+  legs.innerHTML = legsHtml;
 
   const capAlloc = getSlipCapitalAllocation(slip);
   const capRow = document.createElement("div");
@@ -609,6 +626,16 @@ function buildSlipCard(slip, slipIndex, parlays) {
   card.appendChild(legs);
   card.appendChild(capRow);
   card.appendChild(recommended);
+
+  const placeBetBtn = document.createElement("button");
+  placeBetBtn.type = "button";
+  placeBetBtn.className = "btnPlaceBet";
+  placeBetBtn.textContent = "+ Place Bet";
+  placeBetBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    void openPlaceBetModal(slip);
+  });
+  card.appendChild(placeBetBtn);
 
   card.querySelector(".slipCardCopyBtn").addEventListener("click", (e) => {
     const btn = e.target;
@@ -633,7 +660,7 @@ function buildSlipCard(slip, slipIndex, parlays) {
   });
 
   card.addEventListener("click", (e) => {
-    if (e.target.closest(".slipCardEditBtn, .slipCardCopyBtn")) return;
+    if (e.target.closest(".slipCardEditBtn, .slipCardCopyBtn, .btnPlaceBet")) return;
     const isSelected = STATE.selectedSlipIndex === slipIndex;
     STATE.selectedSlipIndex = isSelected ? null : slipIndex;
     document.querySelectorAll(".slipCard.isSelected").forEach((c) => c.classList.remove("isSelected"));
@@ -811,9 +838,9 @@ function renderSlips(parlays) {
 // BACKEND WIRING
 // ============================================================
 
-/** Read bankroll from #bankrollInput into STATE (optional sizing for API). */
+/** Read optional risk budget from #portfolioRiskBudgetInput into STATE (API sizing). */
 function syncBankrollFromInput() {
-  const el = $("bankrollInput");
+  const el = $("portfolioRiskBudgetInput");
   if (!el) return;
   const raw = String(el.value ?? "").trim();
   if (raw === "") {
@@ -1775,8 +1802,10 @@ function openSlipEditor(slipIndex) {
   if (tabBar) tabBar.classList.add("hidden");
   const panelPortfolio = $("panelPortfolio");
   const panelBuilder = $("panelBuilder");
+  const panelMyBets = $("panelMyBets");
   if (panelPortfolio) panelPortfolio.classList.add("hidden");
   if (panelBuilder) panelBuilder.classList.add("hidden");
+  if (panelMyBets) panelMyBets.classList.add("hidden");
   const panelSlip = $("panelSlipEditor");
   if (panelSlip) panelSlip.classList.remove("hidden");
 
@@ -1852,7 +1881,14 @@ function renderSlipEditor() {
 
   const legs = STATE.editingSlipLegs || [];
   const usedInOther = getPropsUsedInOtherSlips(STATE.editingSlipIndex);
-  const allProps = STATE.legs || [];
+  const availableLegs = STATE.legs || [];
+  const seen = new Set();
+  const allProps = availableLegs.filter((leg) => {
+    const key = `${leg.participant}|${leg.market}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 
   // Render leg pills + ghost slots
   legsEl.innerHTML = "";
@@ -2033,12 +2069,381 @@ const STORAGE_KEYS = {
   backendUrl: "puff_backend_url",
 };
 
+// My Bets tab — do not use puff_bankroll here; STORAGE_KEYS.bankroll is the Portfolio risk budget for generation.
+const MY_BETS_BANKROLL_KEY = "puff_my_bets_bankroll";
+const BETS_KEY = "puff_bets";
+
+async function loadMyBetsBankroll() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([MY_BETS_BANKROLL_KEY], (result) => {
+      const v = result[MY_BETS_BANKROLL_KEY];
+      const n = v != null ? Number(v) : 0;
+      resolve(Number.isFinite(n) && n >= 0 ? n : 0);
+    });
+  });
+}
+
+async function saveMyBetsBankroll(amount) {
+  const n = Number(amount);
+  const safe = Number.isFinite(n) && n >= 0 ? n : 0;
+  return new Promise((resolve) => {
+    chrome.storage.local.set({ [MY_BETS_BANKROLL_KEY]: safe }, resolve);
+  });
+}
+
+async function loadBets() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([BETS_KEY], (result) => {
+      const raw = result[BETS_KEY];
+      resolve(Array.isArray(raw) ? raw : []);
+    });
+  });
+}
+
+async function saveBets(bets) {
+  return new Promise((resolve) => {
+    chrome.storage.local.set({ [BETS_KEY]: Array.isArray(bets) ? bets : [] }, resolve);
+  });
+}
+
+async function renderMyBetsTab() {
+  const bankroll = await loadMyBetsBankroll();
+  const bets = await loadBets();
+
+  const bankrollAmountEl = $("bankrollAmount");
+  if (bankrollAmountEl) bankrollAmountEl.textContent = `$${bankroll.toFixed(2)}`;
+
+  const settled = bets.filter((b) => b.status === "won" || b.status === "lost");
+  const wins = settled.filter((b) => b.status === "won").length;
+  const losses = settled.filter((b) => b.status === "lost").length;
+  const totalWagered = settled.reduce((s, b) => s + (Number(b.stake) || 0), 0);
+  const totalReturn = settled
+    .filter((b) => b.status === "won")
+    .reduce((s, b) => s + (Number(b.payout) || 0), 0);
+  const roi =
+    totalWagered > 0 ? (((totalReturn - totalWagered) / totalWagered) * 100).toFixed(1) : "0.0";
+
+  const statWins = $("statWins");
+  const statLosses = $("statLosses");
+  const statROI = $("statROI");
+  if (statWins) statWins.textContent = String(wins);
+  if (statLosses) statLosses.textContent = String(losses);
+  if (statROI) statROI.textContent = `${roi}%`;
+
+  const active = bets.filter((b) => b.status === "pending");
+  const activeBetsList = $("activeBetsList");
+  if (activeBetsList) {
+    if (active.length === 0) {
+      activeBetsList.innerHTML = `
+      <div class="emptyState" id="activeBetsEmpty">
+        <div class="emptyStateIcon">🎯</div>
+        <div class="emptyStateTitle">No active bets</div>
+        <div class="emptyStateMsg">Place a slip from the Portfolio tab to track it here.</div>
+      </div>`;
+    } else {
+      activeBetsList.innerHTML = "";
+      active.forEach((bet) => {
+        activeBetsList.appendChild(renderBetCard(bet));
+      });
+    }
+  }
+
+  const settledBetsCard = $("settledBetsCard");
+  const settledBetsList = $("settledBetsList");
+  if (settled.length > 0) {
+    if (settledBetsCard) settledBetsCard.style.display = "";
+    if (settledBetsList) {
+      settledBetsList.innerHTML = "";
+      [...settled].reverse().forEach((bet) => {
+        settledBetsList.appendChild(renderBetCard(bet));
+      });
+    }
+  } else {
+    if (settledBetsCard) settledBetsCard.style.display = "none";
+    if (settledBetsList) settledBetsList.innerHTML = "";
+  }
+}
+
+function renderBetCard(bet) {
+  const card = document.createElement("div");
+  const st = bet.status || "pending";
+  card.className = `betCard betCard--${st}`;
+  if (bet.id != null) card.dataset.betId = String(bet.id);
+
+  const statusEmoji = st === "pending" ? "⏳" : st === "won" ? "✅" : "❌";
+  const stakeNum = Number(bet.stake);
+  const stakeDisplay = Number.isFinite(stakeNum) && stakeNum > 0 ? `$${stakeNum.toFixed(2)}` : "—";
+  const payoutNum = Number(bet.payout);
+  const payoutDisplay =
+    st === "won" && Number.isFinite(payoutNum) && payoutNum > 0 ? `+$${payoutNum.toFixed(2)}` : "";
+
+  const bookLabel = escHtmlBankroll(bet.book || "—");
+  const legsHtml = (bet.legs || [])
+    .map(
+      (l) =>
+        `<div class="betCardLeg">${escHtmlBankroll(l.participant || "—")} · ${escHtmlBankroll(l.market || "—")}</div>`
+    )
+    .join("");
+
+  const idAttr = bet.id != null ? escAttrBankroll(String(bet.id)) : "";
+
+  card.innerHTML = `
+    <div class="betCardHeader">
+      <span class="betCardBook">${bookLabel}</span>
+      <span class="betCardStatus">${statusEmoji} ${String(st).toUpperCase()}</span>
+    </div>
+    <div class="betCardLegs">
+      ${legsHtml}
+    </div>
+    <div class="betCardFooter">
+      <span class="betCardStake">Stake: ${stakeDisplay}</span>
+      ${payoutDisplay ? `<span class="betCardPayout">${payoutDisplay}</span>` : ""}
+      ${
+        st === "pending" && idAttr
+          ? `
+        <button type="button" class="btnWon btnSecondary" data-id="${idAttr}">Won</button>
+        <button type="button" class="btnLost btnSecondary" data-id="${idAttr}">Lost</button>
+      `
+          : ""
+      }
+    </div>
+  `;
+
+  if (st === "pending" && bet.id != null) {
+    card.querySelector(".btnWon")?.addEventListener("click", () => settleBet(bet.id, "won"));
+    card.querySelector(".btnLost")?.addEventListener("click", () => settleBet(bet.id, "lost"));
+  }
+
+  if (bet.id != null) {
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "btnDeleteBet";
+    deleteBtn.textContent = "🗑";
+    deleteBtn.title = "Delete bet";
+    deleteBtn.setAttribute("aria-label", "Delete bet");
+    deleteBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openDeleteConfirm(bet.id);
+    });
+    card.querySelector(".betCardHeader")?.appendChild(deleteBtn);
+  }
+
+  return card;
+}
+
+async function settleBet(betId, result) {
+  const bets = await loadBets();
+  const bet = bets.find((b) => String(b.id) === String(betId));
+  if (!bet) return;
+
+  bet.status = result;
+  bet.settledAt = Date.now();
+
+  if (result === "won") {
+    const payout = Number(bet.payout);
+    if (Number.isFinite(payout) && payout > 0) {
+      const bankroll = await loadMyBetsBankroll();
+      await saveMyBetsBankroll(bankroll + payout);
+    }
+  }
+
+  await saveBets(bets);
+  await renderMyBetsTab();
+}
+
+function switchTab(name) {
+  const panelPortfolio = $("panelPortfolio");
+  const panelBuilder = $("panelBuilder");
+  const panelMyBets = $("panelMyBets");
+  document.querySelectorAll(".tabBtn").forEach((b) => b.classList.remove("isActive"));
+
+  if (name === "portfolio") {
+    $("tabPortfolioBtn")?.classList.add("isActive");
+    if (panelPortfolio) panelPortfolio.classList.remove("hidden");
+    if (panelBuilder) panelBuilder.classList.add("hidden");
+    if (panelMyBets) panelMyBets.classList.add("hidden");
+    renderBankrollBookList();
+  } else if (name === "builder") {
+    $("tabBuilderBtn")?.classList.add("isActive");
+    if (panelPortfolio) panelPortfolio.classList.add("hidden");
+    if (panelBuilder) panelBuilder.classList.remove("hidden");
+    if (panelMyBets) panelMyBets.classList.add("hidden");
+    refreshBuilderSportsbookOptions();
+    renderBuilder();
+  } else if (name === "mybets") {
+    $("tabMyBetsBtn")?.classList.add("isActive");
+    if (panelPortfolio) panelPortfolio.classList.add("hidden");
+    if (panelBuilder) panelBuilder.classList.add("hidden");
+    if (panelMyBets) panelMyBets.classList.remove("hidden");
+    void renderMyBetsTab();
+  }
+}
+
 function escAttrBankroll(s) {
   return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 }
 
 function escHtmlBankroll(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+}
+
+let _modalSlip = null;
+let _deleteBetId = null;
+
+function openDeleteConfirm(betId) {
+  _deleteBetId = betId;
+  const el = $("deleteBetModal");
+  if (el) {
+    el.classList.remove("hidden");
+    el.setAttribute("aria-hidden", "false");
+  }
+}
+
+function closeDeleteBetModal() {
+  const el = $("deleteBetModal");
+  if (el) {
+    el.classList.add("hidden");
+    el.setAttribute("aria-hidden", "true");
+  }
+  _deleteBetId = null;
+}
+
+function slipBookDisplay(slip) {
+  if (slip?.book != null && String(slip.book).trim()) return String(slip.book);
+  const books = getSlipBooks(slip);
+  return books.length ? books.join(" · ") : "—";
+}
+
+function slipDecimalPayoutMultiplier(slip) {
+  if (slip?.expected_payout != null && Number.isFinite(Number(slip.expected_payout))) {
+    return Number(slip.expected_payout);
+  }
+  const legs = slip?.legs || [];
+  let m = 1;
+  for (const leg of legs) {
+    const odds = leg.odds_american || leg.odds || 0;
+    if (!odds) continue;
+    m *= odds > 0 ? 1 + odds / 100 : 1 + 100 / Math.abs(odds);
+  }
+  return m;
+}
+
+function slipParlayEvAsFraction(slip) {
+  if (slip?.parlay_ev != null && Number.isFinite(Number(slip.parlay_ev))) {
+    return Number(slip.parlay_ev);
+  }
+  const p = computeParlayEv(slip);
+  return p != null ? p / 100 : 0;
+}
+
+function slipCombinedHitAsFraction(slip) {
+  if (slip?.combined_hit_prob != null && Number.isFinite(Number(slip.combined_hit_prob))) {
+    return Number(slip.combined_hit_prob);
+  }
+  const h = computeSlipHitProb(slip);
+  return h != null ? h / 100 : 0;
+}
+
+function resetPlaceBetConflictUi() {
+  const warningEl = $("modalWarning");
+  const confirmBtn = $("btnConfirmBet");
+  const proceedBtn = $("btnWarningProceed");
+  const cancelBtn = $("btnWarningCancel");
+  const bodyEl = $("modalWarningBody");
+  if (warningEl) warningEl.style.display = "none";
+  if (confirmBtn) confirmBtn.style.display = "";
+  if (bodyEl) bodyEl.innerHTML = "";
+  if (proceedBtn) proceedBtn.onclick = null;
+  if (cancelBtn) cancelBtn.onclick = null;
+}
+
+async function finalizeBet() {
+  if (!_modalSlip) return;
+
+  const stakeIn = $("modalStakeInput");
+  const stakeVal = parseFloat(String(stakeIn?.value ?? ""));
+  if (isNaN(stakeVal) || stakeVal <= 0) {
+    if (stakeIn) stakeIn.style.borderColor = "rgba(255,80,80,.6)";
+    return;
+  }
+  if (stakeIn) stakeIn.style.borderColor = "";
+
+  const mult = slipDecimalPayoutMultiplier(_modalSlip);
+  const payout = stakeVal * (Number.isFinite(mult) && mult > 0 ? mult : 1);
+
+  const newBet = {
+    id: `bet_${Date.now()}`,
+    book: slipBookDisplay(_modalSlip),
+    legs: _modalSlip.legs || [],
+    stake: stakeVal,
+    payout: payout,
+    parlay_ev: slipParlayEvAsFraction(_modalSlip),
+    combined_hit_prob: slipCombinedHitAsFraction(_modalSlip),
+    expected_payout: mult,
+    status: "pending",
+    placedAt: Date.now(),
+  };
+
+  const bankroll = await loadMyBetsBankroll();
+  if (bankroll > 0) {
+    await saveMyBetsBankroll(Math.max(0, bankroll - stakeVal));
+  }
+
+  const bets = await loadBets();
+  bets.push(newBet);
+  await saveBets(bets);
+
+  closePlaceBetModal();
+  showToast("Bet placed ✓");
+}
+
+async function openPlaceBetModal(slip) {
+  _modalSlip = slip;
+  const modal = $("placeBetModal");
+  const bookEl = $("modalBook");
+  const legsEl = $("modalLegs");
+  const statsEl = $("modalStats");
+  const stakeIn = $("modalStakeInput");
+  if (!modal || !bookEl || !legsEl || !statsEl) return;
+
+  resetPlaceBetConflictUi();
+
+  bookEl.textContent = slipBookDisplay(slip);
+  legsEl.innerHTML = (slip.legs || [])
+    .map(
+      (l) =>
+        `<div class="betCardLeg">${escHtmlBankroll(l.participant || "—")} · ${escHtmlBankroll(l.market || "—")}</div>`
+    )
+    .join("");
+
+  const pev = slipParlayEvAsFraction(slip);
+  const ch = slipCombinedHitAsFraction(slip);
+  const mult = slipDecimalPayoutMultiplier(slip);
+  statsEl.innerHTML = `<span class="modalStat">ParlayEV ${(pev * 100).toFixed(1)}%</span>
+     <span class="modalStatDivider">·</span>
+     <span class="modalStat">Hit ${(ch * 100).toFixed(1)}%</span>
+     <span class="modalStatDivider">·</span>
+     <span class="modalStat">Payout ${mult.toFixed(1)}x</span>`;
+
+  if (stakeIn) {
+    stakeIn.style.borderColor = "";
+    const bankroll = await loadMyBetsBankroll();
+    const suggested = bankroll > 0 ? (bankroll * 0.01).toFixed(2) : "10.00";
+    stakeIn.value = suggested;
+  }
+
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+}
+
+function closePlaceBetModal() {
+  resetPlaceBetConflictUi();
+  const modal = $("placeBetModal");
+  if (modal) {
+    modal.classList.add("hidden");
+    modal.setAttribute("aria-hidden", "true");
+  }
+  _modalSlip = null;
 }
 
 function attachBankrollIntegerInputHandlers(input) {
@@ -2391,18 +2796,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     Object.keys(pendingBankrolls).forEach((k) => delete pendingBankrolls[k]);
   });
 
-  const bankrollInput = $("bankrollInput");
-  if (bankrollInput) {
-    attachBankrollIntegerInputHandlers(bankrollInput);
+  const portfolioRiskBudgetInput = $("portfolioRiskBudgetInput");
+  if (portfolioRiskBudgetInput) {
+    attachBankrollIntegerInputHandlers(portfolioRiskBudgetInput);
     if (STATE.bankroll != null && Number.isFinite(Number(STATE.bankroll))) {
-      bankrollInput.value = String(STATE.bankroll);
+      portfolioRiskBudgetInput.value = String(STATE.bankroll);
     }
     const persistBankroll = () => {
       syncBankrollFromInput();
       chrome.storage.local.set({ [STORAGE_KEYS.bankroll]: STATE.bankroll });
     };
-    bankrollInput.addEventListener("change", persistBankroll);
-    bankrollInput.addEventListener("blur", persistBankroll);
+    portfolioRiskBudgetInput.addEventListener("change", persistBankroll);
+    portfolioRiskBudgetInput.addEventListener("blur", persistBankroll);
   }
 
   // Buttons
@@ -2512,23 +2917,131 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   initExportSlipStatsButton();
 
-  // Section 4: Tab switching (Portfolio | Builder)
-  const panelPortfolio = $("panelPortfolio");
-  const panelBuilder = $("panelBuilder");
-  $("tabPortfolioBtn")?.addEventListener("click", () => {
-    document.querySelectorAll(".tabBtn").forEach((b) => b.classList.remove("isActive"));
-    $("tabPortfolioBtn")?.classList.add("isActive");
-    if (panelPortfolio) panelPortfolio.classList.remove("hidden");
-    if (panelBuilder) panelBuilder.classList.add("hidden");
-    renderBankrollBookList();
+  // Section 4: Tab switching (Portfolio | Builder | My Bets)
+  $("tabPortfolioBtn")?.addEventListener("click", () => switchTab("portfolio"));
+  $("tabBuilderBtn")?.addEventListener("click", () => switchTab("builder"));
+  $("tabMyBetsBtn")?.addEventListener("click", () => switchTab("mybets"));
+
+  const bankrollEditRow = $("bankrollEditRow");
+  const myBetsBankrollInput = $("bankrollInput");
+  $("btnEditBankroll")?.addEventListener("click", async () => {
+    if (bankrollEditRow) bankrollEditRow.style.display = "";
+    const b = await loadMyBetsBankroll();
+    if (myBetsBankrollInput) myBetsBankrollInput.value = String(b);
+    myBetsBankrollInput?.focus();
   });
-  $("tabBuilderBtn")?.addEventListener("click", () => {
-    document.querySelectorAll(".tabBtn").forEach((b) => b.classList.remove("isActive"));
-    $("tabBuilderBtn")?.classList.add("isActive");
-    if (panelPortfolio) panelPortfolio.classList.add("hidden");
-    if (panelBuilder) panelBuilder.classList.remove("hidden");
-    refreshBuilderSportsbookOptions();
-    renderBuilder();
+  $("btnCancelBankroll")?.addEventListener("click", () => {
+    if (bankrollEditRow) bankrollEditRow.style.display = "none";
+  });
+  $("btnSaveBankroll")?.addEventListener("click", async () => {
+    const val = parseFloat(String(myBetsBankrollInput?.value ?? ""));
+    if (!isNaN(val) && val >= 0) {
+      await saveMyBetsBankroll(val);
+      if (bankrollEditRow) bankrollEditRow.style.display = "none";
+      await renderMyBetsTab();
+    }
+  });
+
+  // Place Bet modal
+  $("btnCloseModal")?.addEventListener("click", closePlaceBetModal);
+  $("btnCancelModal")?.addEventListener("click", closePlaceBetModal);
+  $("placeBetModal")?.addEventListener("click", (e) => {
+    if (e.target === $("placeBetModal")) closePlaceBetModal();
+  });
+  $("deleteBetModal")?.addEventListener("click", (e) => {
+    if (e.target === $("deleteBetModal")) closeDeleteBetModal();
+  });
+  $("btnCancelDelete")?.addEventListener("click", closeDeleteBetModal);
+  $("btnConfirmDelete")?.addEventListener("click", async () => {
+    if (_deleteBetId == null) return;
+
+    const bets = await loadBets();
+    const bet = bets.find((b) => String(b.id) === String(_deleteBetId));
+
+    if (bet && bet.status === "pending") {
+      const stake = Number(bet.stake);
+      if (Number.isFinite(stake) && stake > 0) {
+        const bankroll = await loadMyBetsBankroll();
+        await saveMyBetsBankroll(bankroll + stake);
+      }
+    }
+
+    const updatedBets = bets.filter((b) => String(b.id) !== String(_deleteBetId));
+    await saveBets(updatedBets);
+
+    closeDeleteBetModal();
+    await renderMyBetsTab();
+    showToast("Bet deleted");
+  });
+
+  $("btnConfirmBet")?.addEventListener("click", async () => {
+    if (!_modalSlip) return;
+
+    const stakeIn = $("modalStakeInput");
+    const stakeVal = parseFloat(String(stakeIn?.value ?? ""));
+    if (isNaN(stakeVal) || stakeVal <= 0) {
+      if (stakeIn) stakeIn.style.borderColor = "rgba(255,80,80,.6)";
+      return;
+    }
+    if (stakeIn) stakeIn.style.borderColor = "";
+
+    const existingBets = await loadBets();
+    const pendingBets = existingBets.filter((b) => b.status === "pending");
+    const pendingLegs = pendingBets.flatMap((b) => b.legs || []);
+
+    const newLegs = _modalSlip.legs || [];
+    const sameGameConflict = newLegs.some((newLeg) =>
+      pendingLegs.some(
+        (existing) =>
+          existing.game_key && newLeg.game_key && existing.game_key === newLeg.game_key
+      )
+    );
+
+    if (sameGameConflict) {
+      const conflictLines = newLegs
+        .filter((newLeg) =>
+          pendingLegs.some(
+            (existing) =>
+              existing.game_key && newLeg.game_key && existing.game_key === newLeg.game_key
+          )
+        )
+        .map((leg) => {
+          const conflictingBet = pendingBets.find((b) =>
+            b.legs?.some((el) => el.game_key && leg.game_key && el.game_key === leg.game_key)
+          );
+          const bookLabel = conflictingBet?.book
+            ? escHtmlBankroll(String(conflictingBet.book))
+            : "existing";
+          return `• ${escHtmlBankroll(leg.participant || "?")} (${escHtmlBankroll(leg.market || "?")}) conflicts with your ${bookLabel} bet`;
+        });
+
+      const bodyEl = $("modalWarningBody");
+      const warningEl = $("modalWarning");
+      const confirmBtn = $("btnConfirmBet");
+      const proceedBtn = $("btnWarningProceed");
+      const cancelBtn = $("btnWarningCancel");
+
+      if (bodyEl) bodyEl.innerHTML = conflictLines.join("<br>");
+      if (warningEl) warningEl.style.display = "";
+      if (confirmBtn) confirmBtn.style.display = "none";
+
+      if (proceedBtn) {
+        proceedBtn.onclick = async () => {
+          if (warningEl) warningEl.style.display = "none";
+          if (confirmBtn) confirmBtn.style.display = "";
+          await finalizeBet();
+        };
+      }
+      if (cancelBtn) {
+        cancelBtn.onclick = () => {
+          if (warningEl) warningEl.style.display = "none";
+          if (confirmBtn) confirmBtn.style.display = "";
+        };
+      }
+      return;
+    }
+
+    await finalizeBet();
   });
 
   // Section 4: Parlay Builder — all filters update pool list
@@ -2562,6 +3075,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       changes.puff_bankrollSelectedBooks
     ) {
       refreshBookBankrollsFromStorage();
+    }
+    if (changes[MY_BETS_BANKROLL_KEY] || changes[BETS_KEY]) {
+      if ($("tabMyBetsBtn")?.classList.contains("isActive")) void renderMyBetsTab();
     }
   });
 
