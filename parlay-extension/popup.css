@@ -2778,6 +2778,92 @@ section.metrics { margin-bottom: 12px; }
   margin-top: 12px;
 }
 
+/* ── Analytics Tab ── */
+#panelAnalytics {
+  padding-bottom: 16px;
+}
+.analyticsCard {
+  margin-bottom: 10px;
+}
+.analyticsStatsRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.analyticsStat {
+  flex: 1;
+  text-align: center;
+}
+.analyticsStatValue {
+  font-size: 18px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+}
+.analyticsStatLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.35);
+  margin-top: 2px;
+}
+.analyticsChartTitle {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: 10px;
+}
+.analyticsChartWrap {
+  position: relative;
+  height: 140px;
+}
+.analyticsDonutWrap {
+  height: 120px;
+}
+.analyticsRow {
+  display: flex;
+  gap: 12px;
+}
+.analyticsHalf {
+  flex: 1;
+  min-width: 0;
+}
+.analyticsEmpty {
+  text-align: center;
+  padding: 16px 0;
+}
+.analyticsEmpty .emptyStateIcon {
+  font-size: 24px;
+  margin-bottom: 6px;
+}
+.analyticsActualExpected {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+}
+.aeRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.aeLabel {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+}
+.aeValue {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+.aeNote {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.3);
+  text-align: center;
+  margin-top: 6px;
+  font-style: italic;
+}
+
 .deleteBetModalBody {
   font-size: 13px;
   color: rgba(255, 255, 255, 0.6);
@@ -2872,6 +2958,13 @@ section.metrics { margin-bottom: 12px; }
   width: 100%;
   max-width: none;
   box-sizing: border-box;
+}
+
+.modalKellyHint {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.3);
+  margin-top: 4px;
+  font-style: italic;
 }
 
 .modalWarning {

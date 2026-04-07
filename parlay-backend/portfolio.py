@@ -215,7 +215,7 @@ class PortfolioResult(BaseModel):
 class PortfolioSettings(BaseModel):
     """Settings for portfolio generation."""
     mode: str = Field(default="balanced", pattern="conservative|balanced|aggressive")
-    num_slips: int = Field(default=20, ge=3, le=200)
+    num_slips: int = Field(default=20, ge=1, le=200)
     legs_per_slip: int = Field(default=3, ge=2, le=15, description="Section 6: Allow 2–15 legs; metrics discourage unrealistic parlays")
     max_player_exposure: float = Field(default=0.3, ge=0.05, le=1.0)
     max_game_exposure: Optional[float] = Field(default=None, ge=0.2, le=1.0)

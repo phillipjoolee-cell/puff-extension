@@ -97,6 +97,34 @@ class UserSettings(BaseModel):
     min_hit_prob: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     min_parlay_ev: Optional[float] = Field(default=None, ge=-1.0, le=5.0)
 
+    @field_validator("min_hit_prob", mode="before")
+    @classmethod
+    def _coerce_min_hit_prob_fraction(cls, v):
+        """Accept 0.12 or 12 (percent points); engine compares to combined hit in 0–1."""
+        if v is None:
+            return None
+        try:
+            x = float(v)
+        except (TypeError, ValueError):
+            return v
+        if x > 1.0:
+            x = x / 100.0
+        return max(0.0, min(1.0, x))
+
+    @field_validator("min_parlay_ev", mode="before")
+    @classmethod
+    def _coerce_min_parlay_ev_fraction(cls, v):
+        """If a client sends slider-style percent (e.g. 20 for 20%), convert to 0.20."""
+        if v is None:
+            return None
+        try:
+            x = float(v)
+        except (TypeError, ValueError):
+            return v
+        if x > 1.0 and 5.0 <= x <= 200.0:
+            x = x / 100.0
+        return x
+
     @field_validator("parlay_legs_max")
     @classmethod
     def _max_ge_min(cls, v, info):

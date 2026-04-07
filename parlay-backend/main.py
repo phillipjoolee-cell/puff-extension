@@ -194,7 +194,11 @@ def _filter_slips_by_hit_ev(
     min_hit: float,
     min_parlay_ev: float,
 ) -> List[EngineSlip]:
-    """Keep slips whose combined model hit prob and parlay EV meet slider thresholds."""
+    """Keep slips whose combined model hit prob and parlay EV meet slider thresholds.
+
+    ``min_hit`` must be a fraction in [0, 1] (e.g. 0.12 for 12%), matching the product of
+    leg ``p_model`` values. ``min_parlay_ev`` is parlay EV as a fraction (e.g. 0.20 for +20%).
+    """
     filtered: List[EngineSlip] = []
     for slip in slips:
         hit = 1.0
@@ -635,12 +639,12 @@ def suggest(req: SuggestRequest):
                     settings.parlay_legs_max,
                 )
                 pr = generate_portfolio(book_portfolio_legs, port_settings)
+                # Per-slip filter first: combined hit (0–1) and parlay EV must both pass.
                 filtered_slips = _filter_slips_by_hit_ev(pr.slips, min_hit, min_pev)
-                if len(filtered_slips) < 5:
+                if len(filtered_slips) < 1:
                     logger.info(
-                        "book=%s skipping: only %d slips after filter (min 5 required)",
+                        "book=%s skipping: no slips passed filter",
                         book_name,
-                        len(filtered_slips),
                     )
                     continue
                 all_filtered_slips.extend(filtered_slips)
@@ -703,7 +707,7 @@ def suggest(req: SuggestRequest):
                 all_filtered_slips,
                 PortfolioEngineSettings(
                     mode=engine_mode,
-                    num_slips=max(3, merged_slip_count),
+                    num_slips=max(1, merged_slip_count),
                     min_parlay_ev=0.02,
                     legs_per_slip=settings.parlay_legs_max,
                     max_player_exposure=max_exp,

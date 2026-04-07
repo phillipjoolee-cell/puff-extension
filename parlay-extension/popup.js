@@ -1803,9 +1803,11 @@ function openSlipEditor(slipIndex) {
   const panelPortfolio = $("panelPortfolio");
   const panelBuilder = $("panelBuilder");
   const panelMyBets = $("panelMyBets");
+  const panelAnalytics = $("panelAnalytics");
   if (panelPortfolio) panelPortfolio.classList.add("hidden");
   if (panelBuilder) panelBuilder.classList.add("hidden");
   if (panelMyBets) panelMyBets.classList.add("hidden");
+  if (panelAnalytics) panelAnalytics.classList.add("hidden");
   const panelSlip = $("panelSlipEditor");
   if (panelSlip) panelSlip.classList.remove("hidden");
 
@@ -2164,6 +2166,291 @@ async function renderMyBetsTab() {
   }
 }
 
+// ── Analytics ────────────────────────────────────────────
+let _chartBankroll = null;
+let _chartWL = null;
+let _chartBooks = null;
+
+function destroyAnalyticsCharts() {
+  [_chartBankroll, _chartWL, _chartBooks].forEach((c) => {
+    if (c && typeof c.destroy === "function") {
+      c.destroy();
+    }
+  });
+  _chartBankroll = null;
+  _chartWL = null;
+  _chartBooks = null;
+}
+
+async function renderAnalyticsTab() {
+  const bets = await loadBets();
+  const settled = bets.filter((b) => b.status === "won" || b.status === "lost");
+  const initialBankroll = await loadMyBetsBankroll();
+
+  const wins = settled.filter((b) => b.status === "won");
+  const losses = settled.filter((b) => b.status === "lost");
+  const totalWagered = settled.reduce((s, b) => s + (Number(b.stake) || 0), 0);
+  const totalReturn = wins.reduce((s, b) => s + (Number(b.payout) || 0), 0);
+  const roi = totalWagered > 0 ? (((totalReturn - totalWagered) / totalWagered) * 100).toFixed(1) : null;
+  const actualHitRate =
+    settled.length > 0 ? ((wins.length / settled.length) * 100).toFixed(1) : null;
+  const expectedHitRate =
+    settled.length > 0
+      ? (
+          (settled.reduce((s, b) => s + (Number(b.combined_hit_prob) || 0), 0) / settled.length) *
+          100
+        ).toFixed(1)
+      : null;
+  const edge =
+    actualHitRate != null && expectedHitRate != null
+      ? (parseFloat(actualHitRate) - parseFloat(expectedHitRate)).toFixed(1)
+      : null;
+
+  const roiEl = $("aStatROI");
+  if (roiEl) {
+    roiEl.textContent = roi != null ? `${roi}%` : "—";
+    roiEl.style.color = roi
+      ? parseFloat(roi) >= 0
+        ? "rgba(80,220,120,.9)"
+        : "rgba(255,80,80,.9)"
+      : "rgba(255,255,255,.5)";
+  }
+  const wrEl = $("aStatWinRate");
+  if (wrEl) wrEl.textContent = actualHitRate != null ? `${actualHitRate}%` : "—";
+  const exEl = $("aStatExpected");
+  if (exEl) exEl.textContent = expectedHitRate != null ? `${expectedHitRate}%` : "—";
+  const edEl = $("aStatEdge");
+  if (edEl) {
+    edEl.textContent = edge != null ? `${parseFloat(edge) > 0 ? "+" : ""}${edge}%` : "—";
+    edEl.style.color = edge
+      ? parseFloat(edge) >= 0
+        ? "rgba(80,220,120,.9)"
+        : "rgba(255,80,80,.9)"
+      : "rgba(255,255,255,.5)";
+  }
+
+  destroyAnalyticsCharts();
+
+  if (typeof Chart === "undefined") {
+    const bankrollEmpty = $("bankrollEmpty");
+    const wlEmpty = $("wlEmpty");
+    const booksEmpty = $("booksEmpty");
+    const cB = $("chartBankroll");
+    const cW = $("chartWL");
+    const cBk = $("chartBooks");
+    if (bankrollEmpty) {
+      bankrollEmpty.style.display = "";
+      const msg = bankrollEmpty.querySelector(".emptyStateMsg");
+      if (msg)
+        msg.textContent =
+          "Chart.js could not load. Check your connection and extension permissions.";
+    }
+    if (wlEmpty) wlEmpty.style.display = "";
+    if (booksEmpty) booksEmpty.style.display = "";
+    if (cB) cB.style.display = "none";
+    if (cW) cW.style.display = "none";
+    if (cBk) cBk.style.display = "none";
+    return;
+  }
+
+  const sortedSettled = [...settled].sort(
+    (a, b) => (Number(a.settledAt) || 0) - (Number(b.settledAt) || 0)
+  );
+  const bankrollEmpty = $("bankrollEmpty");
+  const canvasB = $("chartBankroll");
+
+  if (sortedSettled.length < 2) {
+    if (bankrollEmpty) bankrollEmpty.style.display = "";
+    if (canvasB) canvasB.style.display = "none";
+  } else {
+    if (bankrollEmpty) bankrollEmpty.style.display = "none";
+    if (canvasB) canvasB.style.display = "";
+
+    let running = initialBankroll;
+    settled.forEach((b) => {
+      const stake = Number(b.stake) || 0;
+      const payout = Number(b.payout) || 0;
+      if (b.status === "won") running -= payout - stake;
+      if (b.status === "lost") running += stake;
+    });
+
+    const bankrollPoints = [{ x: "Start", y: parseFloat(running.toFixed(2)) }];
+    sortedSettled.forEach((b) => {
+      const stake = Number(b.stake) || 0;
+      const payout = Number(b.payout) || 0;
+      if (b.status === "won") running += payout - stake;
+      if (b.status === "lost") running -= stake;
+      const date = new Date(Number(b.settledAt) || Date.now());
+      const label = `${date.getMonth() + 1}/${date.getDate()}`;
+      bankrollPoints.push({ x: label, y: parseFloat(running.toFixed(2)) });
+    });
+
+    const ctxB = canvasB?.getContext?.("2d");
+    if (ctxB) {
+      _chartBankroll = new Chart(ctxB, {
+        type: "line",
+        data: {
+          labels: bankrollPoints.map((p) => p.x),
+          datasets: [
+            {
+              data: bankrollPoints.map((p) => p.y),
+              borderColor: "rgba(185,190,255,.8)",
+              backgroundColor: "rgba(185,190,255,.08)",
+              borderWidth: 2,
+              pointRadius: 3,
+              pointBackgroundColor: "rgba(185,190,255,.9)",
+              fill: true,
+              tension: 0.3,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: {
+              ticks: { color: "rgba(255,255,255,.35)", font: { size: 10 } },
+              grid: { color: "rgba(255,255,255,.05)" },
+            },
+            y: {
+              ticks: {
+                color: "rgba(255,255,255,.35)",
+                font: { size: 10 },
+                callback: (v) => `$${v}`,
+              },
+              grid: { color: "rgba(255,255,255,.05)" },
+            },
+          },
+        },
+      });
+    }
+  }
+
+  const wlEmpty = $("wlEmpty");
+  const canvasW = $("chartWL");
+  if (settled.length === 0) {
+    if (wlEmpty) wlEmpty.style.display = "";
+    if (canvasW) canvasW.style.display = "none";
+  } else {
+    if (wlEmpty) wlEmpty.style.display = "none";
+    if (canvasW) canvasW.style.display = "";
+    const ctxW = canvasW?.getContext?.("2d");
+    if (ctxW) {
+      _chartWL = new Chart(ctxW, {
+        type: "doughnut",
+        data: {
+          labels: ["Won", "Lost"],
+          datasets: [
+            {
+              data: [wins.length, losses.length],
+              backgroundColor: ["rgba(80,220,120,.7)", "rgba(255,80,80,.6)"],
+              borderColor: ["rgba(80,220,120,.3)", "rgba(255,80,80,.3)"],
+              borderWidth: 1,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: "65%",
+          plugins: {
+            legend: {
+              position: "bottom",
+              labels: { color: "rgba(255,255,255,.5)", font: { size: 10 }, padding: 10 },
+            },
+          },
+        },
+      });
+    }
+  }
+
+  const aeActual = $("aeActual");
+  const aeExpected = $("aeExpected");
+  const aeDiff = $("aeDiff");
+  const aeNote = $("aeNote");
+  if (aeActual) aeActual.textContent = actualHitRate != null ? `${actualHitRate}%` : "—";
+  if (aeExpected) aeExpected.textContent = expectedHitRate != null ? `${expectedHitRate}%` : "—";
+  if (edge != null && aeDiff && aeNote) {
+    const edgeNum = parseFloat(edge);
+    aeDiff.textContent = `${edgeNum >= 0 ? "+" : ""}${edge}%`;
+    aeDiff.style.color = edgeNum >= 0 ? "rgba(80,220,120,.9)" : "rgba(255,80,80,.9)";
+    aeNote.textContent =
+      edgeNum >= 0 ? "Hitting above expectation 🔥" : "Hitting below expectation — normal variance";
+  } else {
+    if (aeDiff) {
+      aeDiff.textContent = "—";
+      aeDiff.style.color = "";
+    }
+    if (aeNote) aeNote.textContent = "Settle bets to see your edge.";
+  }
+
+  const booksEmpty = $("booksEmpty");
+  const canvasBk = $("chartBooks");
+  const bookStats = {};
+  settled.forEach((b) => {
+    const bk = String(b.book || "Unknown").trim() || "Unknown";
+    if (!bookStats[bk]) bookStats[bk] = { wagered: 0, returned: 0 };
+    bookStats[bk].wagered += Number(b.stake) || 0;
+    if (b.status === "won") bookStats[bk].returned += Number(b.payout) || 0;
+  });
+
+  const bookNames = Object.keys(bookStats);
+  if (bookNames.length === 0) {
+    if (booksEmpty) booksEmpty.style.display = "";
+    if (canvasBk) canvasBk.style.display = "none";
+  } else {
+    if (booksEmpty) booksEmpty.style.display = "none";
+    if (canvasBk) canvasBk.style.display = "";
+    const bookROIs = bookNames.map((book) => {
+      const { wagered, returned } = bookStats[book];
+      return wagered > 0 ? parseFloat((((returned - wagered) / wagered) * 100).toFixed(1)) : 0;
+    });
+
+    const ctxBk = canvasBk?.getContext?.("2d");
+    if (ctxBk) {
+      _chartBooks = new Chart(ctxBk, {
+        type: "bar",
+        data: {
+          labels: bookNames,
+          datasets: [
+            {
+              data: bookROIs,
+              backgroundColor: bookROIs.map((r) =>
+                r >= 0 ? "rgba(80,220,120,.6)" : "rgba(255,80,80,.5)"
+              ),
+              borderColor: bookROIs.map((r) =>
+                r >= 0 ? "rgba(80,220,120,.3)" : "rgba(255,80,80,.3)"
+              ),
+              borderWidth: 1,
+              borderRadius: 4,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: {
+              ticks: { color: "rgba(255,255,255,.35)", font: { size: 9 } },
+              grid: { display: false },
+            },
+            y: {
+              ticks: {
+                color: "rgba(255,255,255,.35)",
+                font: { size: 10 },
+                callback: (v) => `${v}%`,
+              },
+              grid: { color: "rgba(255,255,255,.05)", borderDash: [3, 3] },
+            },
+          },
+        },
+      });
+    }
+  }
+}
+
 function renderBetCard(bet) {
   const card = document.createElement("div");
   const st = bet.status || "pending";
@@ -2255,6 +2542,7 @@ function switchTab(name) {
   const panelPortfolio = $("panelPortfolio");
   const panelBuilder = $("panelBuilder");
   const panelMyBets = $("panelMyBets");
+  const panelAnalytics = $("panelAnalytics");
   document.querySelectorAll(".tabBtn").forEach((b) => b.classList.remove("isActive"));
 
   if (name === "portfolio") {
@@ -2262,12 +2550,14 @@ function switchTab(name) {
     if (panelPortfolio) panelPortfolio.classList.remove("hidden");
     if (panelBuilder) panelBuilder.classList.add("hidden");
     if (panelMyBets) panelMyBets.classList.add("hidden");
+    if (panelAnalytics) panelAnalytics.classList.add("hidden");
     renderBankrollBookList();
   } else if (name === "builder") {
     $("tabBuilderBtn")?.classList.add("isActive");
     if (panelPortfolio) panelPortfolio.classList.add("hidden");
     if (panelBuilder) panelBuilder.classList.remove("hidden");
     if (panelMyBets) panelMyBets.classList.add("hidden");
+    if (panelAnalytics) panelAnalytics.classList.add("hidden");
     refreshBuilderSportsbookOptions();
     renderBuilder();
   } else if (name === "mybets") {
@@ -2275,7 +2565,15 @@ function switchTab(name) {
     if (panelPortfolio) panelPortfolio.classList.add("hidden");
     if (panelBuilder) panelBuilder.classList.add("hidden");
     if (panelMyBets) panelMyBets.classList.remove("hidden");
+    if (panelAnalytics) panelAnalytics.classList.add("hidden");
     void renderMyBetsTab();
+  } else if (name === "analytics") {
+    $("tabAnalyticsBtn")?.classList.add("isActive");
+    if (panelPortfolio) panelPortfolio.classList.add("hidden");
+    if (panelBuilder) panelBuilder.classList.add("hidden");
+    if (panelMyBets) panelMyBets.classList.add("hidden");
+    if (panelAnalytics) panelAnalytics.classList.remove("hidden");
+    void renderAnalyticsTab();
   }
 }
 
@@ -2425,11 +2723,38 @@ async function openPlaceBetModal(slip) {
      <span class="modalStatDivider">·</span>
      <span class="modalStat">Payout ${mult.toFixed(1)}x</span>`;
 
+  const kellyHintEl = $("modalKellyHint");
   if (stakeIn) {
     stakeIn.style.borderColor = "";
     const bankroll = await loadMyBetsBankroll();
-    const suggested = bankroll > 0 ? (bankroll * 0.01).toFixed(2) : "10.00";
-    stakeIn.value = suggested;
+    let suggested = 10.0;
+    let hintText =
+      "Default $10.00 — set your bankroll in My Bets to size stakes with ⅓ Kelly.";
+
+    if (bankroll > 0 && slip) {
+      const hitProb = ch;
+      const decimalPayout = Number.isFinite(mult) && mult > 0 ? mult : 1;
+
+      const impliedProb = 1 / decimalPayout;
+      const edge = hitProb - impliedProb;
+
+      if (edge > 0) {
+        const fullKelly = edge / decimalPayout;
+        const fractionalKelly = fullKelly * 0.33;
+        const raw = bankroll * fractionalKelly;
+        suggested = Math.max(1, Math.min(raw, bankroll * 0.05));
+        const kellyPct = ((suggested / bankroll) * 100).toFixed(1);
+        hintText = `Kelly suggests ${kellyPct}% of bankroll based on this slip's edge`;
+      } else {
+        suggested = 1.0;
+        hintText = "Negative or flat edge — $1 minimum suggestion.";
+      }
+    }
+
+    stakeIn.value = suggested.toFixed(2);
+    if (kellyHintEl) kellyHintEl.textContent = hintText;
+  } else if (kellyHintEl) {
+    kellyHintEl.textContent = "";
   }
 
   modal.classList.remove("hidden");
@@ -2921,6 +3246,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("tabPortfolioBtn")?.addEventListener("click", () => switchTab("portfolio"));
   $("tabBuilderBtn")?.addEventListener("click", () => switchTab("builder"));
   $("tabMyBetsBtn")?.addEventListener("click", () => switchTab("mybets"));
+  $("tabAnalyticsBtn")?.addEventListener("click", () => {
+    switchTab("analytics");
+    void renderAnalyticsTab();
+  });
 
   const bankrollEditRow = $("bankrollEditRow");
   const myBetsBankrollInput = $("bankrollInput");
@@ -3078,6 +3407,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     if (changes[MY_BETS_BANKROLL_KEY] || changes[BETS_KEY]) {
       if ($("tabMyBetsBtn")?.classList.contains("isActive")) void renderMyBetsTab();
+      if ($("tabAnalyticsBtn")?.classList.contains("isActive")) void renderAnalyticsTab();
     }
   });
 

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>PUFF</title>
     <link rel="stylesheet" href="popup.css" />
+    <script src="chart.min.js"></script>
   </head>
 
   <body>
@@ -58,6 +59,7 @@
         <button id="tabPortfolioBtn" class="tabBtn isActive" data-tab="portfolio">Portfolio</button>
         <button id="tabBuilderBtn" class="tabBtn" data-tab="builder">Parlay Builder</button>
         <button id="tabMyBetsBtn" class="tabBtn" data-tab="mybets">My Bets</button>
+        <button id="tabAnalyticsBtn" class="tabBtn" data-tab="analytics">Analytics</button>
       </div>
 
       <!-- Portfolio tab content -->
@@ -441,6 +443,85 @@
         </section>
       </div>
 
+      <!-- Analytics tab -->
+      <div id="panelAnalytics" class="tabPanel hidden">
+        <!-- Summary stats row -->
+        <section class="card analyticsCard">
+          <div class="analyticsStatsRow">
+            <div class="analyticsStat">
+              <div class="analyticsStatValue" id="aStatROI">—</div>
+              <div class="analyticsStatLabel">ROI</div>
+            </div>
+            <div class="analyticsStat">
+              <div class="analyticsStatValue" id="aStatWinRate">—</div>
+              <div class="analyticsStatLabel">Hit Rate</div>
+            </div>
+            <div class="analyticsStat">
+              <div class="analyticsStatValue" id="aStatExpected">—</div>
+              <div class="analyticsStatLabel">Expected</div>
+            </div>
+            <div class="analyticsStat">
+              <div class="analyticsStatValue" id="aStatEdge">—</div>
+              <div class="analyticsStatLabel">Edge</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Bankroll over time -->
+        <section class="card analyticsCard">
+          <div class="analyticsChartTitle">Bankroll Over Time</div>
+          <div class="analyticsChartWrap">
+            <canvas id="chartBankroll"></canvas>
+          </div>
+          <div class="analyticsEmpty" id="bankrollEmpty" style="display: none;">
+            <div class="emptyStateIcon">📈</div>
+            <div class="emptyStateMsg">Settle some bets to see your bankroll chart.</div>
+          </div>
+        </section>
+
+        <!-- W/L donut -->
+        <section class="card analyticsCard analyticsRow">
+          <div class="analyticsHalf">
+            <div class="analyticsChartTitle">Win / Loss</div>
+            <div class="analyticsChartWrap analyticsDonutWrap">
+              <canvas id="chartWL"></canvas>
+            </div>
+            <div class="analyticsEmpty" id="wlEmpty" style="display: none;">
+              <div class="emptyStateMsg">No settled bets yet.</div>
+            </div>
+          </div>
+          <div class="analyticsHalf">
+            <div class="analyticsChartTitle">Actual vs Expected</div>
+            <div class="analyticsActualExpected" id="analyticsActualExpected">
+              <div class="aeRow">
+                <div class="aeLabel">Actual hit rate</div>
+                <div class="aeValue" id="aeActual">—</div>
+              </div>
+              <div class="aeRow">
+                <div class="aeLabel">Expected hit rate</div>
+                <div class="aeValue" id="aeExpected">—</div>
+              </div>
+              <div class="aeRow">
+                <div class="aeLabel">Difference</div>
+                <div class="aeValue" id="aeDiff">—</div>
+              </div>
+              <div class="aeNote" id="aeNote"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Book performance -->
+        <section class="card analyticsCard">
+          <div class="analyticsChartTitle">ROI by Book</div>
+          <div class="analyticsChartWrap">
+            <canvas id="chartBooks"></canvas>
+          </div>
+          <div class="analyticsEmpty" id="booksEmpty" style="display: none;">
+            <div class="emptyStateMsg">No settled bets yet.</div>
+          </div>
+        </section>
+      </div>
+
       <!-- Section 9: Onboarding tour overlay -->
       <div id="onboardingOverlay" class="onboardingOverlay hidden">
         <div class="onboardingBackdrop"></div>
@@ -471,6 +552,7 @@
           <div class="modalStakeRow">
             <label class="modalLabel" for="modalStakeInput">Stake ($)</label>
             <input type="number" id="modalStakeInput" class="bankrollInput" placeholder="10.00" min="0.01" step="0.01" />
+            <div class="modalKellyHint" id="modalKellyHint"></div>
           </div>
           <div id="modalWarning" class="modalWarning" style="display: none;">
             <div class="modalWarningTitle">⚠️ Same-game conflict</div>
