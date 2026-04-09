@@ -247,3 +247,16 @@ class ReplaceLegResponse(BaseModel):
     replacement: Optional[Dict[str, Any]] = None  # { participant, market, line, ev_impact, ... }
     no_replacement: Optional[bool] = False
     portfolio_ev: Optional[float] = None
+
+class BetIn(BaseModel):
+    bet_id: str = Field(..., examples=["one"])
+    sportsbook: str 
+    stake: float 
+    hit_rate: float
+    ev: float
+    payout: float
+    leg_count: int
+    legs_json: str
+    kelly_suggest:float
+    place_time: str = Field(..., examples=["2026-04-06T18:30:00"])
+    status: Literal["won", "pending", "lost"] = "pending"

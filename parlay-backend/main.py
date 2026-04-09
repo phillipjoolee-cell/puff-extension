@@ -22,6 +22,7 @@ from schemas import (
     SuggestRequest,
     SuggestResponse,
     OddsFormat,
+    BetIn,
 )
 
 from portfolio import (
@@ -31,6 +32,8 @@ from portfolio import (
     build_portfolio_result,
     Slip as EngineSlip,
 )
+
+from database import insert_bet as db
 
 import json
 import os
@@ -816,3 +819,19 @@ def suggest(req: SuggestRequest):
         book_sections=book_sections,
     )
 
+@app.post("/bets")
+def save_bet(req: BetIn):
+    db(
+        bet_id=req.bet_id,
+        sportsbook=req.sportsbook,
+        stake=req.stake,
+        hit_rate=req.hit_rate,
+        ev=req.ev,
+        payout=req.payout,
+        leg_count=req.leg_count,
+        legs_json=req.legs_json,
+        kelly_suggest=req.kelly_suggest,
+        place_time=req.place_time,
+        status=req.status
+    )
+    return {"status": "ok", "bet_id": req.bet_id}
